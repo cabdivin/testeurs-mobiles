@@ -23,6 +23,9 @@ on:
       langue:
         description: Language / region
         default: fr-FR
+      routes:
+        description: "Route names to replay (comma-separated, empty = all)"
+        default: ""
       fichier_routes:
         description: Routes file (empty = routes/<app>.txt)
         default: ""
@@ -85,6 +88,7 @@ jobs:
           APP: ${{ inputs.app }}
           APP_URL: ${{ inputs.app == 'pro' && secrets.APP_IOS_URL_PRO || secrets.APP_IOS_URL_PATIENT }}
           ROUTES: ${{ inputs.fichier_routes != '' && inputs.fichier_routes || format('routes/{0}.txt', inputs.app) }}
+          ROUTES_FILTRE: ${{ inputs.routes }}
           OUT: results/captures-${{ inputs.app }}-${{ matrix.slug }}-${{ matrix.theme }}
           QA_SESSION_TOKEN: ${{ secrets[format('QA_TOKEN_CAPTURES_{0}', matrix.idx)] }}   # one single-use token per job
           QA_PATIENT_ID: ${{ secrets.QA_PATIENT_ID }}
