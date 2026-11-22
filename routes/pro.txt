@@ -1,0 +1,28 @@
+# nom|route|attente en secondes. {patient} = secret QA_PATIENT_ID, {conversation} = secret QA_CONVERSATION_ID
+# (une ligne dont le jeton est vide est sautee). Lien ouvert : cabdivin-pro:/<route>
+journee|(tabs)/journee|8
+salle-attente|(tabs)/journee/salle-attente|8
+agenda|(tabs)/agenda|8
+agenda-nouveau-rdv|(tabs)/agenda/rdv/new|8
+patients|(tabs)/patients|8
+fiche-patient|(tabs)/patients/{patient}|10
+patient-ordonnances|(tabs)/patients/{patient}/ordonnances|8
+patient-nouvelle-ordonnance|(tabs)/patients/{patient}/ordonnances/nouvelle|8
+patient-documents|(tabs)/patients/{patient}/documents|8
+patient-factures|(tabs)/patients/{patient}/factures|8
+patient-constantes|(tabs)/patients/{patient}/constantes|8
+patient-nouvelle-constante|(tabs)/patients/{patient}/constantes/nouvelle|8
+patient-consultations|(tabs)/patients/{patient}/consultations|8
+patient-nouvelle-consultation|(tabs)/patients/{patient}/consultations/nouvelle|8
+patient-nouveau-certificat|(tabs)/patients/{patient}/certificats/nouveau|8
+patient-note|(tabs)/patients/{patient}/note|8
+messages|(tabs)/messages|8
+fil-conversation|(tabs)/messages/{conversation}|8
+notifications|notifications|8
+plus|(tabs)/plus|8
+reglages|(tabs)/plus/reglages|8
+reglages-suppression-compte|(tabs)/plus/reglages/delete-account|8
+annuaire|(tabs)/plus/annuaire|8
+ancienne-salle-attente|(tabs)/salle-attente|8
+ancien-reglages|(tabs)/reglages|8
+ancien-annuaire|(tabs)/annuaire|8

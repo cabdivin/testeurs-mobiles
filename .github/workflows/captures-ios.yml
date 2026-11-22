@@ -1,0 +1,102 @@
+# Scripted screenshots of the Cabdivin apps on iPhone simulators (no AI agent, no Claude secret).
+# Results are encrypted with results_public.pem (the logs of a public repo are public):
+# nothing read on screen is ever printed. Decrypt with: bash scripts/collecter-captures.sh <run id> <folder>
+name: Captures iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: App to capture
+        type: choice
+        options: [pro, patient]
+        default: pro
+      appareils:
+        description: Simulators (comma-separated, e.g. "iPhone 17,iPhone SE (3rd generation)")
+        default: "iPhone 17"
+      themes:
+        description: Themes (comma-separated, light and/or dark)
+        default: "light,dark"
+      taille_texte:
+        description: "Text size (large = system default; extra-extra-large, accessibility-extra-large...)"
+        default: large
+      langue:
+        description: Language / region
+        default: fr-FR
+      fichier_routes:
+        description: Routes file (empty = routes/<app>.txt)
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check setup
+        run: test -s results_public.pem || { echo "::error::results_public.pem is missing"; exit 1; }
+      - id: m
+        env:
+          DEVICES: ${{ inputs.appareils }}
+          THEMES: ${{ inputs.themes }}
+        run: python3 scripts/captures_matrix.py >> "$GITHUB_OUTPUT"
+
+  captures:
+    needs: plan
+    runs-on: macos-26
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Latest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)"
+      - name: Tools (AXe, Pillow)
+        run: |
+          brew install -q cameroncooke/axe/axe
+          python3 -m pip install -q --break-system-packages pillow
+
+      - name: Simulator
+        env:
+          MODEL_NAME: ${{ matrix.device }}
+          THEME: ${{ matrix.theme }}
+          TEXT_SIZE: ${{ inputs.taille_texte }}
+          LOCALE: ${{ inputs.langue }}
+        run: |
+          python3 scripts/ios/create_sim.py "$MODEL_NAME" 26 | tee -a "$GITHUB_ENV" > "$RUNNER_TEMP/sim.env"
+          UDID=$(grep '^UDID=' "$RUNNER_TEMP/sim.env" | cut -d= -f2)
+          xcrun simctl boot "$UDID" && xcrun simctl bootstatus "$UDID" -b >/dev/null
+          d() { xcrun simctl spawn "$UDID" defaults write "$@"; }
+          L="${LOCALE:-fr-FR}"
+          d -g AppleLanguages -array "$L"; d -g AppleLocale -string "${L/-/_}"
+          xcrun simctl shutdown "$UDID" && xcrun simctl boot "$UDID" && xcrun simctl bootstatus "$UDID" -b >/dev/null
+          xcrun simctl ui "$UDID" appearance "$THEME"
+          xcrun simctl ui "$UDID" content_size "${TEXT_SIZE:-large}"
+
+      - name: Captures
+        env:
+          APP: ${{ inputs.app }}
+          APP_URL: ${{ inputs.app == 'pro' && secrets.APP_IOS_URL_PRO || secrets.APP_IOS_URL_PATIENT }}
+          ROUTES: ${{ inputs.fichier_routes != '' && inputs.fichier_routes || format('routes/{0}.txt', inputs.app) }}
+          OUT: results/captures-${{ inputs.app }}-${{ matrix.slug }}-${{ matrix.theme }}
+          QA_SESSION_TOKEN: ${{ secrets[format('QA_TOKEN_CAPTURES_{0}', matrix.idx)] }}   # one single-use token per job
+          QA_PATIENT_ID: ${{ secrets.QA_PATIENT_ID }}
+          QA_CONVERSATION_ID: ${{ secrets.QA_CONVERSATION_ID }}
+        run: bash scripts/ios/captures.sh
+
+      - name: Encrypt results
+        if: always()
+        run: bash scripts/encrypt_results.sh "captures-${{ inputs.app }}-${{ matrix.slug }}-${{ matrix.theme }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: "results-captures-${{ inputs.app }}-${{ matrix.slug }}-${{ matrix.theme }}"
+          path: results.enc/
+          retention-days: 14

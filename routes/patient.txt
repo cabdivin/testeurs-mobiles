@@ -1,0 +1,6 @@
+# nom|route|attente en secondes. Lien ouvert : cabdivin:/<route> (app patient, non connectee)
+lancement||8
+onboarding|onboarding|8
+connexion|(auth)/login|8
+code-invitation|(auth)/invite-code|8
+annuaire-public|annuaire-public|10

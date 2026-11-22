@@ -187,3 +187,11 @@ It sometimes misreads a screen: 3 of LocalSend's 20 agents flagged the Simulator
 [android-emulator-runner](https://github.com/ReactiveCircus/android-emulator-runner)
 
 Made by [@pierridotite](https://github.com/pierridotite) ([LinkedIn](https://www.linkedin.com/in/pierre-raffalli/)) · MIT license
+
+## Captures iOS scriptees (sans agent IA)
+
+Workflow `captures-ios.yml` : ouvre chaque route de `routes/<app>.txt` par lien profond sur un simulateur iPhone (iOS 26) et prend deux captures par route (`NN-<nom>.png` et `NN-<nom>-bas.png`), plus `journal.txt` et `erreurs-app.txt`. Aucun secret Claude. Resultats chiffres (cle publique du depot) ; rien de lisible dans le journal du job.
+
+Secrets : `APP_IOS_URL_PRO`, `APP_IOS_URL_PATIENT` (archive `.tar.gz` d'un `.app` simulateur), `QA_PATIENT_ID`, `QA_CONVERSATION_ID` (routes Pro avec `{patient}` / `{conversation}` ; sinon la ligne est sautee) et, pour l'app Pro, `QA_TOKEN_CAPTURES_<n>`. Chaque job de la matrice consomme un jeton a usage unique : il faut autant de secrets que de jobs, soit (nombre d'appareils) x (nombre de themes). Par defaut (1 appareil, 2 themes) : `QA_TOKEN_CAPTURES_1` et `QA_TOKEN_CAPTURES_2`. L'index suit l'ordre appareil puis theme (appareil 1 clair = 1, appareil 1 sombre = 2, appareil 2 clair = 3...).
+
+Recuperer les captures : `bash scripts/collecter-captures.sh <run id> <dossier>`.
