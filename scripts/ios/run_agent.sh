@@ -18,6 +18,14 @@ BID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" 2
 if [ -n "$BID" ] && [ "$BID" != "$APP_ID" ]; then echo "Bundle id read from the app (differs from app_id)"; APP_ID=$BID; fi
 export APP_ID
 xcrun simctl launch "$UDID" "$APP_ID"; sleep 8
+# Optional signed-in test session: the app reads the token from a deep link. The value is never printed.
+if [ -n "${QA_SESSION_TOKEN:-}" ] && [ -n "${QA_SESSION_URL_SCHEME:-}" ]; then
+  sleep 15
+  ENC=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.stdin.read().strip(),safe=""))' <<<"$QA_SESSION_TOKEN" 2>/dev/null)
+  xcrun simctl openurl "$UDID" "${QA_SESSION_URL_SCHEME}:/__qa/session?token=${ENC}" >/dev/null 2>&1 || echo "session link not opened"
+  sleep 20
+fi
+unset QA_SESSION_TOKEN ENC   # the agent must not inherit it
 # First capture stores the screen width in points for gesture.sh
 python3 scripts/ios/screen.py "$RUNNER_TEMP/warmup" 00 >/dev/null 2>&1 || true
 # Optional screen recording, kept in results/ (encrypted like the rest)

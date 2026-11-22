@@ -178,5 +178,59 @@
     "locale": "zh-CN",
     "geo": [31.2304, 121.4737],
     "device": {"simulator": "iPhone 16e", "ios": 18, "text_size": "extra-large", "theme": "light"}
+  },
+  {
+    "id": "salma",
+    "platform": "ios",
+    "profile": "Orthophoniste, 34 ans, à Casablanca, utilise l'app entre deux séances, toujours pressée.",
+    "goal": "Parcourir sa journée, son agenda, la liste et la fiche d'un patient, les messages et les réglages.",
+    "locale": "fr-FR",
+    "geo": [33.5731, -7.5898],
+    "device": {"simulator": "iPhone 17", "ios": 26, "text_size": "large", "theme": "light"}
+  },
+  {
+    "id": "karim",
+    "platform": "ios",
+    "profile": "Orthophoniste, 52 ans, à Casablanca, lit avec une grande taille de texte.",
+    "goal": "Parcourir sa journée, son agenda, la liste et la fiche d'un patient, les messages et les réglages, en repérant tout texte coupé.",
+    "locale": "fr-FR",
+    "geo": [33.5731, -7.5898],
+    "device": {"simulator": "iPhone SE (3rd generation)", "ios": 26, "text_size": "extra-extra-large", "theme": "light"}
+  },
+  {
+    "id": "nadia",
+    "platform": "ios",
+    "profile": "Praticienne, 38 ans, à Casablanca, travaille le soir en mode sombre.",
+    "goal": "Parcourir l'agenda, ouvrir un nouveau rendez-vous (sans l'enregistrer), la fiche d'un patient et ses documents, les ordonnances et les factures.",
+    "locale": "fr-FR",
+    "geo": [33.5731, -7.5898],
+    "device": {"simulator": "iPhone 17 Pro Max", "ios": 26, "text_size": "large", "theme": "dark"}
+  },
+  {
+    "id": "ines",
+    "platform": "ios",
+    "profile": "Patiente, 29 ans, à Casablanca, pas à l'aise avec la technique.",
+    "goal": "Comprendre l'app dès l'ouverture, voir l'écran de connexion, trouver un praticien dans l'annuaire public.",
+    "locale": "fr-FR",
+    "geo": [33.5731, -7.5898],
+    "device": {"simulator": "iPhone 17", "ios": 26, "text_size": "large", "theme": "light"}
+  },
+  {
+    "id": "youssef",
+    "platform": "ios",
+    "profile": "Patient, 41 ans, à Casablanca, utilise son téléphone en arabe.",
+    "goal": "Parcourir présentation, connexion, annuaire public, en vérifiant le sens droite-gauche et les textes non traduits.",
+    "locale": "ar",
+    "geo": [33.5731, -7.5898],
+    "device": {"simulator": "iPhone 17", "ios": 26, "text_size": "large", "theme": "light"}
+  },
+  {
+    "id": "hana",
+    "platform": "ios",
+    "profile": "Patiente, 63 ans, à Casablanca, utilise la plus grande taille de texte.",
+    "goal": "Parcourir présentation, connexion, annuaire public ; chaque texte et chaque bouton doit rester lisible et atteignable.",
+    "locale": "fr-FR",
+    "geo": [33.5731, -7.5898],
+    "device": {"simulator": "iPhone SE (3rd generation)", "ios": 26, "text_size": "accessibility-extra-extra-extra-large", "theme": "dark"}
   }
 ]

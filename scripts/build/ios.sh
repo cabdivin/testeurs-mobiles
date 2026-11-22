@@ -56,5 +56,7 @@ else case "$FW" in
     [ -f Podfile ] && q pod install; [ -f ios/Podfile ] && (cd ios && q pod install); xcbuild . ;;
   *) echo "::error::Unknown framework $FW"; exit 1 ;;
 esac; fi
+# Prebuilt download: ARTIFACT may be a folder holding the .app (name unknown in advance)
+if [ -n "${OUT:-}" ] && [ -d "$OUT" ] && [ "${OUT%.app}" = "$OUT" ]; then OUT=$(find "$OUT" -maxdepth 3 -name '*.app' -type d | head -1); fi
 [ -n "${OUT:-}" ] && [ -d "$OUT" ] || { echo "::error::No Simulator .app found after the $FW build"; exit 1; }
 tar czf "$ROOT/app-ios.tgz" -C "$(dirname "$OUT")" "$(basename "$OUT")"; echo "Simulator app ready ($FW)"

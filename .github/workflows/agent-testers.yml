@@ -53,6 +53,9 @@ on:
       llm_base_url:
         description: "Optional: any Anthropic-compatible API instead of Claude (OpenRouter, DeepSeek, Kimi, GLM...), key in the LLM_API_KEY secret. Quality depends on how well the model reads screenshots and reasons: docs/cheaper-models.md"
         default: ""
+      qa_url_scheme:
+        description: "iOS: URL scheme of the app for the test session (opens <scheme>:/__qa/session?token=... with the persona's QA_TOKEN_<ID> secret). Empty = no session"
+        default: ""
       block_hosts:
         description: Hosts the app must not reach during tests (analytics, ads), space-separated
         default: "app.posthog.com eu.i.posthog.com us.i.posthog.com graph.facebook.com api.mixpanel.com api2.amplitude.com"
@@ -132,7 +135,7 @@ jobs:
   build-ios:
     needs: plan
     if: needs.plan.outputs.ios != '[]'
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -149,7 +152,7 @@ jobs:
       - uses: actions/setup-java@v4   # Kotlin Multiplatform builds call Gradle from Xcode
         with: { distribution: temurin, java-version: "17" }
       - name: Latest Xcode
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)"
       - uses: actions/cache@v4
         with:
           path: |
@@ -163,6 +166,8 @@ jobs:
           BUILD_COMMAND: ${{ inputs.ios_build }}
           ARTIFACT: ${{ inputs.ios_app_path }}
           IOS_SCHEME: ${{ vars.IOS_SCHEME }}   # optional repo variable, for projects with several schemes
+          APP_IOS_URL_PRO: ${{ secrets.APP_IOS_URL_PRO }}   # prebuilt Simulator .app (.tar.gz), used by ios_build
+          APP_IOS_URL_PATIENT: ${{ secrets.APP_IOS_URL_PATIENT }}
         run: bash scripts/build/ios.sh "$APP_DIR" "${{ inputs.framework }}"
       - name: Encrypt .app
         env: { ARTIFACT_PASSPHRASE: "${{ secrets.ARTIFACT_PASSPHRASE }}" }
@@ -261,7 +266,7 @@ jobs:
 
   ios:
     needs: [plan, build-ios]
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -278,7 +283,7 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -in app-ios.tgz.enc -out app-ios.tgz -pass env:ARTIFACT_PASSPHRASE
           mkdir -p app && tar xzf app-ios.tgz -C app
       - name: Latest Xcode
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)"
       - name: Tools (AXe, Pillow, Claude Code)
         run: |
           brew install -q cameroncooke/axe/axe
@@ -338,6 +343,8 @@ jobs:
           TEXT_SIZE: ${{ matrix.text_size }}
           THEME: ${{ matrix.theme }}
           LOCALE: ${{ matrix.locale }}
+          QA_SESSION_TOKEN: ${{ secrets[format('QA_TOKEN_{0}', matrix.persona_upper)] }}   # per-persona secret, empty if none
+          QA_SESSION_URL_SCHEME: ${{ inputs.qa_url_scheme }}
           GEO: ${{ matrix.geo }}
           APP_ID: ${{ inputs.app_id }}
           BRIEF: ${{ inputs.bug_report != '' && inputs.brief == 'AGENT_BRIEF.md' && 'briefs/reproduce.md' || inputs.brief }}

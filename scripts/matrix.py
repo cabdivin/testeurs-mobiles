@@ -1,7 +1,7 @@
 """Builds the job matrix: one row per requested persona, with its device.
 Env: PERSONAS (comma-separated ids, "all" for every persona of the platform, "none" or empty to skip it), PLATFORM (android | ios).
 Prints <platform>=<json> for $GITHUB_OUTPUT."""
-import json, os
+import json, os, re
 
 platform = os.environ.get("PLATFORM", "android")
 wanted = [p.strip() for p in os.environ.get("PERSONAS", "").split(",") if p.strip()]
@@ -24,6 +24,7 @@ for pid in wanted:
     row = {"persona": pid, "theme": d.get("theme", "light"), "locale": p.get("locale", "en-US"),
            "geo": f"{geo[0]},{geo[1]}"}
     if platform == "ios":
+        row["persona_upper"] = re.sub(r"[^A-Z0-9]", "_", pid.upper())   # for the QA_TOKEN_<ID> secret name
         row.update({"simulator": d.get("simulator", "iPhone 16"), "ios": str(d.get("ios", "18")),
                     "text_size": d.get("text_size", "large")})
     else:
