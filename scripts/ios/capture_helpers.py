@@ -6,6 +6,7 @@ Matching is case- and accent-insensitive, on the label, the value or the testID 
   tapid <testID>      -> taps the element whose testID is exactly <testID>; prints 1 or 0
   has <text>          -> prints 1 if an element contains <text>
   swiperow <text>     -> horizontal swipe (right to left) on the row that contains <text>; prints 1 or 0
+  front               -> prints the label of the root (Application) node: "springboard" = the home screen is shown
   login               -> prints 1 if the login screen of the app is shown (testIDs "login-*")"""
 import json, os, subprocess, sys, unicodedata
 
@@ -100,5 +101,9 @@ elif cmd == "swiperow":
         subprocess.run(["axe", "swipe", "--start-x", str(round(w * 0.85)), "--start-y", str(round(c[1])), "--end-x", str(round(w * 0.15)),
                         "--end-y", str(round(c[1])), "--duration", "0.4", "--udid", UDID], capture_output=True)
     print(1 if c else 0)
+elif cmd == "front":
+    t = tree()
+    root = next(iter(walk(t)), None)
+    print(norm((root or {}).get("AXLabel") or (root or {}).get("title") or "") or "?")
 elif cmd == "login":
     print(1 if any(str(n.get("AXUniqueId") or "").startswith("login-") for n in walk(tree())) else 0)

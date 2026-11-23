@@ -3,6 +3,46 @@
 ; Etapes : ouvrir <route> | toucher <libelle> | toucher-id <testID> | saisir <texte> | attendre <s> | defiler bas|haut
 ;          retour | fermer-feuille | balayer-gauche <libelle ou testID> | sauter-si <texte> | capture <nom>
 ; INTERDIT : valider un formulaire, envoyer, enregistrer, supprimer, se deconnecter, activer les notifications.
+# diag-focus
+ouvrir (tabs)/agenda/rdv/new
+attendre 3
+toucher-id new-rdv-patient-input
+attendre 3
+capture clavier-ouvert
+verifier-premier-plan
+# diag-touches
+ouvrir (tabs)/agenda/rdv/new
+attendre 3
+toucher-id new-rdv-patient-input
+saisir-touches a
+attendre 2
+capture apres-touches
+verifier-premier-plan
+# diag-coller
+ouvrir (tabs)/agenda/rdv/new
+attendre 3
+toucher-id new-rdv-patient-input
+coller abc
+attendre 2
+capture apres-coller
+verifier-premier-plan
+# diag-saisir
+ouvrir (tabs)/agenda/rdv/new
+attendre 3
+toucher-id new-rdv-patient-input
+saisir abc
+attendre 2
+capture apres-saisir
+verifier-premier-plan
+# diag-message
+ouvrir (tabs)/messages/{conversation}
+attendre 4
+toucher-id thread-composer-input-field
+attendre 3
+capture clavier-ouvert
+saisir-touches bonjour
+capture apres-touches
+verifier-premier-plan
 # rdv-clavier
 ouvrir (tabs)/agenda/rdv/new
 attendre 3

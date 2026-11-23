@@ -27,6 +27,22 @@ done
 
 shot() { xcrun simctl io "$UDID" screenshot --type=png "$OUT/$1.png" >/dev/null 2>&1; }
 H() { python3 scripts/ios/capture_helpers.py "$@"; }
+app_pid() { xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | awk -v b="UIKitApplication:$BID" 'index($0,b){print $1; exit}'; }
+# Foreground = the app runs (PID) AND the AXe root node is not SpringBoard (home screen)
+au_premier_plan() { local pid; pid=$(app_pid); [ -n "$pid" ] && [ "$pid" != "-" ] && [ "$(H front)" != springboard ]; }
+CRASH_N=0
+collect_crashes() {  # copies the app's crash reports (host + simulator) into $OUT/plantages, logs count + summary of the new ones
+  mkdir -p "$OUT/plantages"; local f n=0 new=0
+  for f in "$HOME"/Library/Logs/DiagnosticReports/*.ips "$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data/Library/Logs/CrashReporter/"*; do
+    [ -f "$f" ] || continue
+    case "$(basename "$f")" in *"$EXE"*) ;; *) grep -q -i -F "$EXE" "$f" 2>/dev/null || continue ;; esac
+    n=$((n + 1))
+    if [ ! -e "$OUT/plantages/$(basename "$f")" ]; then
+      cp "$f" "$OUT/plantages/" && new=$((new + 1)); log "  plantage : $(python3 scripts/ios/crash_summary.py "$f" 2>/dev/null)"
+    fi
+  done
+  log "rapports de plantage de l'app : $n (nouveaux : $new)"
+}
 ALERT_N=0
 # The system alert "Open in <app>?" (SpringBoard) appears after a delay: probe every 0.5 s for 6 s at most
 accept_alert() {
@@ -92,10 +108,13 @@ while IFS="|" read -r NAME ROUTE WAIT <&3; do
 done 3< "$([ "$ROUTES_FILTRE" = aucune ] && echo /dev/null || echo "$ROUTES")"
 
 
+collect_crashes
+
 # ---------------------------------------------------------------------------------------------
 # Interaction scenarios (scenarios/<app>.txt): "# name" opens a block, one step per line.
 #   ouvrir <route> | toucher <label> | toucher-id <testID> | saisir <text> | attendre <s> | defiler bas|haut
 #   retour | fermer-feuille | balayer-gauche <label> | sauter-si <text> | capture <name>
+#   saisir-touches <text> (axe type only) | coller <text> (pbcopy + Cmd+V only) | verifier-premier-plan
 # Journal: step lines only (never screen content).
 fresh_start() {
   xcrun simctl terminate "$UDID" "$BID" >/dev/null 2>&1; sleep 1
@@ -116,7 +135,16 @@ run_step() {
     ouvrir) subst_route "$arg" || return 1; openurl "${SCHEME}:/${ROUTE_OUT}"; sleep 6; close_sheet 1; return 0 ;;
     toucher) [ "$(H tapx "$arg")" = 1 ] && { sleep 1.5; return 0; }; return 1 ;;
     toucher-id) [ "$(H tapid "$arg")" = 1 ] && { sleep 1.5; return 0; }; return 1 ;;
-    saisir) python3 scripts/ios/type.py "$arg" >/dev/null 2>&1; sleep 1; H tap "Autoriser le collage" "Allow Paste" >/dev/null; sleep 1; return 0 ;;
+    saisir|saisir-touches|coller)
+      local p0 p1; p0=$(app_pid)
+      case "$verb" in
+        saisir) python3 scripts/ios/type.py "$arg" >/dev/null 2>&1 ;;
+        saisir-touches) axe type "$(printf '%s' "$arg" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null || printf '%s' "$arg")" --udid "$UDID" >/dev/null 2>&1 ;;
+        coller) printf '%s' "$arg" | xcrun simctl pbcopy "$UDID" >/dev/null 2>&1; axe key-combo --modifiers 227 --key 25 --udid "$UDID" >/dev/null 2>&1 ;;
+      esac
+      sleep 1; H tap "Autoriser le collage" "Allow Paste" >/dev/null; sleep 1
+      p1=$(app_pid); log "  [$SCN_NAME] pid avant/apres $verb : ${p0:-aucun} -> ${p1:-aucun}"; return 0 ;;
+    verifier-premier-plan) au_premier_plan && return 0; return 1 ;;
     attendre) sleep "$arg"; return 0 ;;
     defiler)
       if [ "$arg" = haut ]; then axe swipe --start-x $((W / 2)) --start-y $((SH / 4)) --end-x $((W / 2)) --end-y $((SH * 3 / 4)) --duration 0.5 --udid "$UDID" >/dev/null 2>&1
@@ -141,11 +169,13 @@ run_scenario() {  # $1 = name, $2 = block (one step per line)
   while IFS= read -r line <&5; do
     line=${line%$'\r'}; [[ -z "${line// }" || "$line" == \;* ]] && continue
     run_step "$line"; rc=$?
-    if [ $rc = 0 ]; then ok=$((ok + 1)); log "  [$SCN_NAME] ok : $line"
+    if au_premier_plan; then FG="oui"; else FG="non"; fi
+    if [ $rc = 0 ]; then ok=$((ok + 1)); log "  [$SCN_NAME] ok : $line (premier plan : $FG)"
     elif [ $rc = 2 ]; then log "  [$SCN_NAME] saute ($line)"; break
-    else ko=$((ko + 1)); log "  [$SCN_NAME] ECHEC : $line"; break; fi
+    else ko=$((ko + 1)); log "  [$SCN_NAME] ECHEC : $line (premier plan : $FG)"; break; fi
   done 5<<<"$2"
   log "scenario $SCN_NAME : $ok etapes ok, $ko echec"
+  collect_crashes
 }
 SCN_N=1
 if [ "$SCENARIOS" != aucun ] && [ -f "$SCENARIOS_FILE" ]; then
@@ -163,9 +193,14 @@ if [ "$SCENARIOS" != aucun ] && [ -f "$SCENARIOS_FILE" ]; then
   [ $STOP = 0 ] && flush
 fi
 
-# JavaScript / native errors of the app during the run (200 lines at most)
+# Errors of the app during the run: known noise filtered out, 400 lines at most
+NOISE='CoreHaptics|UIKBFeedbackGenerator|UIFocus|boringssl|nw_|quic_|CFNetwork|CUIThemeStore|app_launch_measurement'
 xcrun simctl spawn "$UDID" log show --last 30m --style compact \
   --predicate "process == \"$EXE\" AND (messageType == error OR messageType == fault OR eventMessage CONTAINS \"ERROR\")" 2>/dev/null \
-  | head -200 > "$OUT/erreurs-app.txt"
+  | grep -v -E "$NOISE" | head -400 > "$OUT/erreurs-app.txt"
+xcrun simctl spawn "$UDID" log show --last 30m --style compact \
+  --predicate "process == \"ReportCrash\" OR process == \"osanalyticshelper\" OR eventMessage CONTAINS[c] \"$EXE\"" 2>/dev/null \
+  | grep -i -E "crash|terminat|exception|abort|signal|jetsam|watchdog" | tail -80 > "$OUT/plantages.txt"
+collect_crashes
 log "fin : $DONE routes capturees sur $TOTAL"
 echo "captures: $DONE/$TOTAL routes, $(ls "$OUT"/*.png 2>/dev/null | wc -l | tr -d ' ') images"
