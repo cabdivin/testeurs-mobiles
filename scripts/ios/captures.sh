@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # Scripted screenshots of the app on a booted simulator (no AI agent). The job log must stay empty of
 # anything read on screen: only counters are printed, everything else goes to $OUT (encrypted afterwards).
-# Env: UDID, APP (pro|patient), APP_URL (secret: .tar.gz of the Simulator .app), ROUTES (file), OUT (folder),
+# Env: UDID, APP (pro|patient), APP_URL (secret: .tar.gz of the Simulator .app) or APP_ARCHIVE (local .tar.gz), ROUTES (file), OUT (folder),
 #      ROUTES_FILTRE (names, comma-separated, empty = all), SESSION (aucune|famille, patient only), QA_PATIENT_TOKEN (secret, single use), SCENARIOS (names, empty = all, "aucun" = none), SCENARIOS_FILE, QA_SESSION_TOKEN, QA_PATIENT_ID, QA_CONVERSATION_ID (secrets, optional)
 set -uo pipefail
 ROUTES_FILTRE=${ROUTES_FILTRE:-}; SESSION=${SESSION:-aucune}; SCENARIOS=${SCENARIOS:-}; SCENARIOS_FILE=${SCENARIOS_FILE:-scenarios/$APP.txt}
-: "${UDID:?}" "${APP:?}" "${APP_URL:?}" "${ROUTES:?}" "${OUT:?}"
+: "${UDID:?}" "${APP:?}" "${ROUTES:?}" "${OUT:?}"
+APP_ARCHIVE=${APP_ARCHIVE:-}; [ -n "$APP_ARCHIVE" ] || : "${APP_URL:?APP_URL or APP_ARCHIVE is required}"
 case "$APP" in pro) SCHEME=cabdivin-pro ;; patient) SCHEME=cabdivin ;; *) echo "app must be pro or patient"; exit 1 ;; esac
 mkdir -p "$OUT"; J="$OUT/journal.txt"; : > "$J"
 log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" >> "$J"; }
 
-mkdir -p "$RUNNER_TEMP/app-dl" && curl -fsSL "$APP_URL" -o "$RUNNER_TEMP/app.tar.gz" 2>/dev/null \
-  && tar -xzf "$RUNNER_TEMP/app.tar.gz" -C "$RUNNER_TEMP/app-dl" || { echo "download of the app failed"; exit 1; }
+if [ -n "$APP_ARCHIVE" ]; then cp "$APP_ARCHIVE" "$RUNNER_TEMP/app.tar.gz"; else curl -fsSL "$APP_URL" -o "$RUNNER_TEMP/app.tar.gz" 2>/dev/null; fi \
+  && mkdir -p "$RUNNER_TEMP/app-dl" && tar -xzf "$RUNNER_TEMP/app.tar.gz" -C "$RUNNER_TEMP/app-dl" || { echo "download of the app failed"; exit 1; }
 APPDIR=$(find "$RUNNER_TEMP/app-dl" -maxdepth 3 -name '*.app' -type d | head -1)
 [ -n "$APPDIR" ] || { echo "no .app in the archive"; exit 1; }
 xcrun simctl install "$UDID" "$APPDIR" || { echo "install failed"; exit 1; }

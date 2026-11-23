@@ -2,11 +2,15 @@
 # Production iOS build of a Cabdivin app with `eas build --local` (no EAS cloud build), optional TestFlight upload.
 # Public repo: every tool output goes to results/build-ios-<app>/*.log (encrypted afterwards);
 # the public log only carries the step lines written here.
-# Env: APP (pro|patient), REF, ENVOYER (oui|non), EXPO_TOKEN, OMNICAB_DEPLOY_KEY, IOS_DIST_P12_B64,
+# Env: APP (pro|patient), REF, PROFIL (production|qa-simulateur), ENVOYER (oui|non), ARTIFACT_PASSPHRASE, EXPO_TOKEN, OMNICAB_DEPLOY_KEY, IOS_DIST_P12_B64,
 #      IOS_DIST_P12_PASSWORD, IOS_PROFILE_B64, ASC_API_KEY_P8_B64, ASC_KEY_ID, ASC_ISSUER_ID, APPLE_TEAM_ID
 set +x
 set -uo pipefail
 case "${APP:-}" in pro) BUNDLE_ID=com.cabdivin.pro ;; patient) BUNDLE_ID=com.cabdivin.patient ;; *) echo "::error::app must be pro or patient"; exit 1 ;; esac
+PROFIL=${PROFIL:-production}
+case "$PROFIL" in production|qa-simulateur) ;; *) echo "::error::profil must be production or qa-simulateur"; exit 1 ;; esac
+if [ "$PROFIL" = qa-simulateur ] && [ "${ENVOYER:-non}" = oui ]; then echo "::error::qa-simulateur builds are never uploaded"; exit 1; fi
+if [[ "${REF:-}" =~ ^[0-9a-f]{7,39}$ ]]; then echo "::error::ref looks like an abbreviated SHA: give a branch or the full 40-character SHA"; exit 1; fi
 ROOT=${GITHUB_WORKSPACE:-$PWD}
 LOGS="$ROOT/results/build-ios-$APP"; mkdir -p "$LOGS"
 WORK="$RUNNER_TEMP/omnicab"; SIGN="$RUNNER_TEMP/sign"; OUT="$RUNNER_TEMP/out"; IPA="$OUT/$APP.ipa"
@@ -19,7 +23,7 @@ step() {  # step <name> <command...>: output to its own log, one public line
   if [ $rc -eq 0 ]; then echo "step $name: ok ($((SECONDS - t0)) s)"; else echo "::error::step $name: failed, code $rc ($((SECONDS - t0)) s)"; fi
   return $rc
 }
-finish() { echo "app=$APP ref=$REF sha=${SHA:-?} version=${VERSION:-?} build=${BUILD:-?} sent=${SENT:-non}" | tee -a "$GITHUB_STEP_SUMMARY"; }
+finish() { echo "app=$APP ref=$REF sha=${SHA:-?} profil=$PROFIL version=${VERSION:-?} build=${BUILD:-?} sent=${SENT:-non}" | tee -a "$GITHUB_STEP_SUMMARY"; }
 trap finish EXIT
 
 clone() {
@@ -72,8 +76,32 @@ preflight() {
 build() {
   cd "$WORK/mobile/apps/$APP" || return 1
   export EAS_LOCAL_BUILD_WORKINGDIR="$RUNNER_TEMP/eas-work" EAS_LOCAL_BUILD_ARTIFACTS_DIR="$OUT/artifacts"
-  npx --yes eas-cli@latest build:version:get --platform ios --profile production --non-interactive || true
-  npx --yes eas-cli@latest build --local --platform ios --profile production --non-interactive --output "$IPA"
+  npx --yes eas-cli@latest build:version:get --platform ios --profile "$PROFIL" --non-interactive || true
+  npx --yes eas-cli@latest build --local --platform ios --profile "$PROFIL" --non-interactive --output "$IPA" || return 1
+  npx --yes eas-cli@latest build:version:get --platform ios --profile "$PROFIL" --non-interactive || true
+}
+
+check_sim() {  # simulator .app of the QA profile: route table AND the QA session route must be present
+  local x="$RUNNER_TEMP/simapp"; rm -rf "$x"; mkdir -p "$x" && tar -xzf "$SIMTGZ" -C "$x" || return 1
+  local a; a=$(find "$x" -maxdepth 3 -name '*.app' -type d | head -1); [ -d "$a" ] || { echo "no .app"; return 1; }
+  local pb=/usr/libexec/PlistBuddy id m
+  id=$($pb -c 'Print :CFBundleIdentifier' "$a/Info.plist")
+  $pb -c 'Print :CFBundleShortVersionString' "$a/Info.plist" > "$OUT/version"
+  $pb -c 'Print :CFBundleVersion' "$a/Info.plist" > "$OUT/build"
+  echo "bundle id: $id"; [ "$id" = "$BUNDLE_ID" ] || { echo "wrong bundle id"; return 1; }
+  $pb -c 'Print :CFBundleSupportedPlatforms' "$a/Info.plist" | grep -q iPhoneSimulator || { echo "not a simulator build"; return 1; }
+  local b="$a/main.jsbundle"; [ -f "$b" ] || { echo "no main.jsbundle"; return 1; }
+  ls -l "$b"
+  grep -a -q 'omnicab.qa.session-injector.v1' "$b" || { echo "QA session injector missing"; return 1; }
+  for m in $(case $APP in pro) echo journee agenda patients messages reglages ;; *) echo accueil famille rdv messages profil ;; esac); do
+    grep -a -q "$m" "$b" || { echo "route marker $m missing"; return 1; }
+  done
+  echo "route table and QA session route present"
+}
+
+package_sim() {  # encrypted with ARTIFACT_PASSPHRASE so captures-ios.yml can decrypt it in its own runner
+  [ -n "${ARTIFACT_PASSPHRASE:-}" ] || { echo "ARTIFACT_PASSPHRASE missing"; return 1; }
+  mkdir -p "$ROOT/app-out" && openssl enc -aes-256-cbc -pbkdf2 -salt -in "$SIMTGZ" -out "$ROOT/app-out/app-ios.tgz.enc" -pass env:ARTIFACT_PASSPHRASE
 }
 
 check_ipa() {
@@ -100,6 +128,16 @@ submit() {
 step clone clone || exit 1
 SHA=$(git -C "$WORK" rev-parse --short HEAD)
 step tools tools || exit 1
+if [ "$PROFIL" = qa-simulateur ]; then
+  SIMTGZ="$OUT/$APP-sim.tar.gz"; IPA=$SIMTGZ
+  step npm-ci install_deps || exit 1
+  step eas-build-local build || exit 1
+  step sim-check check_sim; RC=$?
+  VERSION=$(cat "$OUT/version" 2>/dev/null); BUILD=$(cat "$OUT/build" 2>/dev/null)
+  [ $RC -eq 0 ] || exit 1
+  step package package_sim || exit 1
+  exit 0
+fi
 step signing signing || exit 1
 step npm-ci install_deps || exit 1
 step preflight-bundle preflight || exit 1

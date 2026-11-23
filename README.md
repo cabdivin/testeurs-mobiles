@@ -196,6 +196,24 @@ Secrets : `APP_IOS_URL_PRO`, `APP_IOS_URL_PATIENT` (archive `.tar.gz` d'un `.app
 
 Recuperer les captures : `bash scripts/collecter-captures.sh <run id> <dossier>`.
 
+Photographier le code actuel au lieu de l'app de `APP_IOS_URL_<APP>` : lancer d'abord `build-ios.yml` avec `profil=qa-simulateur` pour la meme app, puis `captures-ios.yml` avec `build_run=<id de ce lancement>` (l'app chiffree est gardee 3 jours).
+
+## Build iOS (eas build --local, sans build EAS dans le nuage)
+
+Workflow `build-ios.yml` (macOS heberge) : clone le code de l'app au `ref` (branche ou SHA complet de 40 caracteres) par une cle de deploiement en lecture seule, puis `eas build --local`.
+
+- `profil=production` : `.ipa` signe App Store ; garde-fou du bundle avant et apres le build (table de routes, injecteur de session QA absent), controle de l'identifiant, de la signature et du profil ; `envoyer=oui` depose sur TestFlight (jamais en revue). L'IPA n'est jamais publie en artefact.
+- `profil=qa-simulateur` : `.app` Release pour simulateur, route de session QA presente (verifiee) ; artefact `app-simulateur-<app>` chiffre avec `ARTIFACT_PASSPHRASE`, garde 3 jours. Jamais d'envoi.
+
+Toute sortie d'outil est chiffree (cle publique du depot) ; le journal public ne porte que les lignes d'etape et `app, ref, sha, profil, version, build`. Journaux : `bash scripts/collecter-build.sh <run id> <dossier>`.
+
+Secrets : `EXPO_TOKEN`, `OMNICAB_DEPLOY_KEY`, `ARTIFACT_PASSPHRASE` ; pour la production : `IOS_DIST_P12_B64`, `IOS_DIST_P12_PASSWORD`, `IOS_PROFILE_PRO_B64`, `IOS_PROFILE_PATIENT_B64`, `ASC_API_KEY_P8_B64`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `APPLE_TEAM_ID`.
+
+```
+gh workflow run build-ios.yml -f app=pro -f ref=develop -f profil=qa-simulateur
+gh workflow run build-ios.yml -f app=pro -f ref=develop -f envoyer=oui
+```
+
 ### Scenarios d'interaction
 
 `scenarios/<app>.txt` : `# nom` ouvre un scenario, une etape par ligne (`;` = commentaire). Chaque scenario part d'une app relancee a neuf (session conservee). Etapes : `ouvrir <route>` (jetons `{patient}`, `{conversation}`), `toucher <libelle>` (exact d'abord, puis "contient", sans casse ni accents ; libelle ou testID), `toucher-id <testID>`, `saisir <texte>`, `attendre <s>`, `defiler bas|haut`, `retour`, `fermer-feuille`, `balayer-gauche <libelle>`, `sauter-si <texte>`, `capture <nom>` (fichier `S<nn>-<scenario>-<nom>.png`). Un echec d'etape est note dans `journal.txt` (libelle de l'etape seulement) et passe au scenario suivant. Entrees du workflow : `scenarios` (noms, vide = tous, `aucun` = aucun) et `routes` (`aucune` = ne jouer que les scenarios). Les scenarios ne valident, n'envoient, n'enregistrent ni ne suppriment jamais rien.

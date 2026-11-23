@@ -16,10 +16,15 @@ on:
         description: Branch or SHA of the app source
         default: develop
       envoyer:
-        description: "Upload the .ipa to TestFlight (oui / non)"
+        description: "Upload the .ipa to TestFlight (oui / non; refused with qa-simulateur)"
         type: choice
         options: ["non", "oui"]
         default: "non"
+      profil:
+        description: "production (signed .ipa) or qa-simulateur (Simulator .app with the QA session route, for captures-ios.yml)"
+        type: choice
+        options: [production, qa-simulateur]
+        default: production
 
 permissions:
   contents: read
@@ -48,6 +53,8 @@ jobs:
           APP: ${{ inputs.app }}
           REF: ${{ inputs.ref }}
           ENVOYER: ${{ inputs.envoyer }}
+          PROFIL: ${{ inputs.profil }}
+          ARTIFACT_PASSPHRASE: ${{ secrets.ARTIFACT_PASSPHRASE }}
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           OMNICAB_DEPLOY_KEY: ${{ secrets.OMNICAB_DEPLOY_KEY }}
           IOS_DIST_P12_B64: ${{ secrets.IOS_DIST_P12_B64 }}
@@ -72,3 +79,9 @@ jobs:
           name: "results-build-ios-${{ inputs.app }}"
           path: results.enc/
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: success() && inputs.profil == 'qa-simulateur'
+        with:
+          name: "app-simulateur-${{ inputs.app }}"
+          path: app-out/app-ios.tgz.enc
+          retention-days: 3
