@@ -10,7 +10,7 @@
 # claviers
 ouvrir (tabs)/patients
 attendre 3
-toucher Rechercher || toucher Recherche
+toucher Rechercher || Recherche
 attendre 2
 capture patients-recherche-clavier
 relancer
@@ -75,7 +75,7 @@ capture apres-annuler
 # patients-recherche
 ouvrir (tabs)/patients
 attendre 3
-toucher Rechercher || toucher Recherche
+toucher Rechercher || Recherche
 saisir li
 attendre 2
 capture recherche-li
