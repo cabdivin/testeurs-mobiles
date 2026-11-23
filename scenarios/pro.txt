@@ -42,31 +42,33 @@ relancer
 ouvrir (tabs)/patients/{patient}/constantes/nouvelle
 attendre 3
 sauter-si Non disponible pour votre specialite
-defiler-vers constante-spo2
-toucher-id constante-spo2
+toucher-id constante-ta-systolique || constante-fc || constante-poids || constante-temperature
 attendre 2
 capture constante-pave-numerique
 # rdv-clavier
-ouvrir (tabs)/agenda/rdv/new
+; navigation reelle : onglet Agenda puis "+" de l'en-tete (la garde "Abandonner la saisie ?" ne joue pas sur un lien direct)
+ouvrir (tabs)/agenda
+attendre 4
+toucher-id agenda-new-rdv-button
 attendre 3
 toucher-id new-rdv-patient-input
 saisir a
 attendre 2
 capture patient-clavier-resultats
-toucher-id new-rdv-motif-field || toucher Motif
+toucher new-rdv-motif-field || Motif
 saisir suivi
 capture motif-clavier
 toucher-id rdv-new-cancel
 capture abandon-feuille
-toucher-id create-modal-keep || toucher Continuer la saisie
+toucher create-modal-keep || Continuer la saisie
 capture apres-continuer
 # rdv-selecteurs
 ouvrir (tabs)/agenda/rdv/new
 attendre 3
-toucher-id new-rdv-date || toucher Date
+toucher new-rdv-date || Date
 capture date
 toucher-id new-rdv-date-picker-cancel
-toucher-id new-rdv-start-time || toucher Heure
+toucher new-rdv-start-time || Heure
 capture heure
 toucher-id new-rdv-start-time-picker-cancel
 capture apres-annuler
@@ -93,12 +95,17 @@ attendre 4
 toucher-id thread-composer-input-field
 saisir bonjour
 capture saisie-clavier
-toucher-id thread-composer-attach || toucher Joindre un fichier
+toucher thread-composer-attach || Joindre un fichier
 capture menu-pieces-jointes
 fermer-feuille
 capture apres-fermeture
 # ordonnance-clavier
-ouvrir (tabs)/patients/{patient}/ordonnances/nouvelle
+; navigation reelle : fiche patient, entree Ordonnances, "+"
+ouvrir (tabs)/patients/{patient}
+attendre 4
+toucher patient-ordonnances-entry || patient-detail-dossier-ordonnances || Ordonnances
+attendre 3
+toucher-id ordonnances-new
 attendre 3
 toucher-id ordonnance-medecin-nom
 saisir test
@@ -108,19 +115,30 @@ toucher-id ordonnance-nb-seances
 capture champ-numerique
 toucher-id patients-nouvelle-cancel
 capture abandon-feuille
-toucher-id create-modal-keep || toucher Continuer la saisie
+toucher create-modal-keep || Continuer la saisie
+capture apres-continuer
+# note-abandon
+ouvrir (tabs)/patients/{patient}
+attendre 4
+toucher-id patient-detail-quick-note
+attendre 3
+toucher-id patient-note-content-field || patient-note-content-area
+saisir test
+capture note-clavier
+toucher-id patients-note-cancel
+capture abandon-feuille
+toucher create-modal-keep || Continuer la saisie
 capture apres-continuer
 # constante-pave
 ouvrir (tabs)/patients/{patient}/constantes/nouvelle
 attendre 3
 sauter-si Non disponible pour votre specialite
-defiler-vers constante-spo2
-toucher-id constante-spo2
+toucher-id constante-ta-systolique || constante-fc || constante-poids || constante-temperature
 saisir 9
 capture pave-numerique
 toucher-id patients-nouvelle-constante-cancel
 capture abandon-feuille
-toucher-id create-modal-keep || toucher Continuer la saisie
+toucher create-modal-keep || Continuer la saisie
 # notifications-balayage
 ouvrir notifications
 attendre 4

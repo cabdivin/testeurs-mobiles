@@ -8,6 +8,7 @@ Matching is case- and accent-insensitive, on the label, the value or the testID 
   swiperow <text>     -> horizontal swipe (right to left) on the row that contains <text>; prints 1 or 0
   isfront <name>...   -> prints 1 if the root node label equals / contains one of the (non-empty) names
   seen <text>         -> prints 1 if an element matching <text> is visible on screen
+  stats               -> "elements=<n> champs=<n> focus=<0|1>": size of the AXe tree, text fields, one focused (no content)
   front               -> prints the label of the root (Application) node: "springboard" = the home screen is shown
   login               -> prints 1 if the login screen of the app is shown (testIDs "login-*")"""
 import json, os, subprocess, sys, unicodedata
@@ -110,6 +111,11 @@ elif cmd == "isfront":
 elif cmd == "seen":
     w, h = screen()
     print(1 if any(visible(centre(n), w, h) and any(args[0] in s for s in texts(n)) for n in walk(tree())) else 0)
+elif cmd == "stats":
+    nodes = list(walk(tree()))
+    fields = [n for n in nodes if any(k in str(n.get("type") or n.get("role_description") or "") for k in ("TextField", "TextArea", "SearchField", "Text Field", "Text View"))]
+    focus = any(n.get("AXFocused") or n.get("focused") for n in fields)
+    print(f"elements={len(nodes)} champs={len(fields)} focus={1 if focus else 0}")
 elif cmd == "front":
     t = tree()
     root = next(iter(walk(t)), None)

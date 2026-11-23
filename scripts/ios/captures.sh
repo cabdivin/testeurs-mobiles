@@ -37,17 +37,22 @@ au_premier_plan() {
   [ -n "$pid" ] && [ "$pid" != "-" ] && [ "$(H isfront "$APPNAME1" "$APPNAME2")" = 1 ]
 }
 CRASH_N=0
-collect_crashes() {  # copies the app's crash reports (host + simulator) into $OUT/plantages, logs count + summary of the new ones
-  mkdir -p "$OUT/plantages"; local f n=0 new=0
+collect_crashes() {  # app's own crash reports only (file name = process name); tools (axe...) are counted apart
+  mkdir -p "$OUT/plantages"; local f b n=0 new=0 tools="" proc
   for f in "$HOME"/Library/Logs/DiagnosticReports/*.ips "$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data/Library/Logs/CrashReporter/"*; do
     [ -f "$f" ] || continue
-    case "$(basename "$f")" in *"$EXE"*) ;; *) grep -q -i -F "$EXE" "$f" 2>/dev/null || continue ;; esac
-    n=$((n + 1))
-    if [ ! -e "$OUT/plantages/$(basename "$f")" ]; then
-      cp "$f" "$OUT/plantages/" && new=$((new + 1)); log "  plantage : $(python3 scripts/ios/crash_summary.py "$f" 2>/dev/null)"
+    b=$(basename "$f"); proc=${b%%-20[0-9][0-9]-*}
+    if [ "$proc" = "$EXE" ]; then
+      n=$((n + 1))
+      if [ ! -e "$OUT/plantages/$b" ]; then
+        cp "$f" "$OUT/plantages/" && new=$((new + 1)); log "  plantage de l'app : $(python3 scripts/ios/crash_summary.py "$f" 2>/dev/null)"
+      fi
+    else
+      case " $tools " in *" $proc "*) ;; *) tools="$tools $proc" ;; esac
     fi
   done
   log "rapports de plantage de l'app : $n (nouveaux : $new)"
+  log "plantages d'outils (ignores) :${tools:- aucun}"
 }
 ALERT_N=0
 # The system alert "Open in <app>?" (SpringBoard) appears after a delay: probe every 0.5 s for 6 s at most
@@ -171,12 +176,17 @@ run_step() {
   case "$verb" in
     ouvrir) subst_route "$arg" || return 1; openurl "${SCHEME}:/${ROUTE_OUT}"; sleep 6; close_sheet 1; return 0 ;;
     toucher|toucher-id)  # alternatives separated by " || ", tried in order
-      local alt rest=$arg sub=tapx; [ "$verb" = toucher-id ] && sub=tapid
-      while :; do
-        alt=${rest%% || *}
-        [ "$(H "$sub" "$alt")" = 1 ] && { sleep 1.5; return 0; }
-        [[ "$rest" == *' || '* ]] || break
-        rest=${rest#* || }
+      local alt rest sub=tapx; [ "$verb" = toucher-id ] && sub=tapid
+      local pass
+      for pass in 1 2; do  # second pass after 3 s: the screen may still be animating
+        rest=$arg
+        while :; do
+          alt=${rest%% || *}
+          [ "$(H "$sub" "$alt")" = 1 ] && { sleep 1.5; return 0; }
+          [[ "$rest" == *' || '* ]] || break
+          rest=${rest#* || }
+        done
+        [ $pass = 1 ] && sleep 3
       done
       return 1 ;;
     saisir|saisir-touches|coller)
@@ -224,7 +234,11 @@ run_scenario() {  # $1 = name, $2 = block (one step per line), $3 = "nofresh" to
     if au_premier_plan; then FG="oui"; else FG="non"; fi
     if [ $rc = 0 ]; then ok=$((ok + 1)); log "  [$SCN_NAME] ok : $line (premier plan : $FG, racine : $FG_ROOT)"
     elif [ $rc = 2 ]; then log "  [$SCN_NAME] saute ($line)"; break
-    else ko=$((ko + 1)); log "  [$SCN_NAME] ECHEC : $line (premier plan : $FG, racine : $FG_ROOT)"; break; fi
+    else
+      ko=$((ko + 1)); log "  [$SCN_NAME] ECHEC : $line (premier plan : $FG, racine : $FG_ROOT)"
+      shot "S${SCN_NN}-${SCN_NAME}-ECHEC-${ko}"; log "  [$SCN_NAME] arbre a l'echec : $(H stats)"
+      break
+    fi
   done 5<<<"$2"
   log "scenario $SCN_NAME : $ok etapes ok, $ko echec"
   collect_crashes
