@@ -1,48 +1,51 @@
 ; Scenarios d'interaction de l'app Pro (cabinet de test, serveur reel).
 ; Format : "# nom" ouvre un scenario, une etape par ligne ; les lignes commencant par ; sont ignorees.
-; Etapes : ouvrir <route> | toucher <libelle> | toucher-id <testID> | saisir <texte> | attendre <s> | defiler bas|haut
-;          retour | fermer-feuille | balayer-gauche <libelle ou testID> | sauter-si <texte> | capture <nom>
+; Etapes : ouvrir <route> | toucher <libelle> | toucher-id <testID> (alternatives : "a || b") | saisir <texte> (collage seul)
+;          saisir-touches <texte> | coller <texte> | attendre <s> | defiler bas|haut | defiler-vers <texte ou testID>
+;          retour | fermer-feuille | relancer | balayer-gauche <libelle ou testID> | sauter-si <texte>
+;          verifier-premier-plan | capture <nom>
 ; INTERDIT : valider un formulaire, envoyer, enregistrer, supprimer, se deconnecter, activer les notifications.
-# diag-focus
-ouvrir (tabs)/agenda/rdv/new
+; ORDRE : le clavier logiciel disparait des qu'une touche materielle a ete envoyee (meme apres relance) :
+;         le scenario "claviers", sans aucune saisie, passe donc en premier.
+# claviers
+ouvrir (tabs)/patients
 attendre 3
-toucher-id new-rdv-patient-input
-attendre 3
-capture clavier-ouvert
-verifier-premier-plan
-# diag-touches
-ouvrir (tabs)/agenda/rdv/new
-attendre 3
-toucher-id new-rdv-patient-input
-saisir-touches a
+toucher Rechercher || toucher Recherche
 attendre 2
-capture apres-touches
-verifier-premier-plan
-# diag-coller
+capture patients-recherche-clavier
+relancer
 ouvrir (tabs)/agenda/rdv/new
 attendre 3
 toucher-id new-rdv-patient-input
-coller abc
 attendre 2
-capture apres-coller
-verifier-premier-plan
-# diag-saisir
-ouvrir (tabs)/agenda/rdv/new
-attendre 3
-toucher-id new-rdv-patient-input
-saisir abc
+capture rdv-patient-clavier
+toucher-id new-rdv-motif-field
 attendre 2
-capture apres-saisir
-verifier-premier-plan
-# diag-message
+capture rdv-motif-clavier
+relancer
 ouvrir (tabs)/messages/{conversation}
 attendre 4
 toucher-id thread-composer-input-field
+attendre 2
+capture message-clavier
+relancer
+ouvrir (tabs)/patients/{patient}/ordonnances/nouvelle
 attendre 3
-capture clavier-ouvert
-saisir-touches bonjour
-capture apres-touches
-verifier-premier-plan
+toucher-id ordonnance-medecin-nom
+attendre 2
+capture ordonnance-clavier
+defiler-vers ordonnance-nb-seances
+toucher-id ordonnance-nb-seances
+attendre 2
+capture ordonnance-pave-numerique
+relancer
+ouvrir (tabs)/patients/{patient}/constantes/nouvelle
+attendre 3
+sauter-si Non disponible pour votre specialite
+defiler-vers constante-spo2
+toucher-id constante-spo2
+attendre 2
+capture constante-pave-numerique
 # rdv-clavier
 ouvrir (tabs)/agenda/rdv/new
 attendre 3
@@ -50,27 +53,27 @@ toucher-id new-rdv-patient-input
 saisir a
 attendre 2
 capture patient-clavier-resultats
-toucher-id new-rdv-motif-field
+toucher-id new-rdv-motif-field || toucher Motif
 saisir suivi
 capture motif-clavier
 toucher-id rdv-new-cancel
 capture abandon-feuille
-toucher-id create-modal-keep
+toucher-id create-modal-keep || toucher Continuer la saisie
 capture apres-continuer
 # rdv-selecteurs
 ouvrir (tabs)/agenda/rdv/new
 attendre 3
-toucher-id new-rdv-date
+toucher-id new-rdv-date || toucher Date
 capture date
 toucher-id new-rdv-date-picker-cancel
-toucher-id new-rdv-start-time
+toucher-id new-rdv-start-time || toucher Heure
 capture heure
 toucher-id new-rdv-start-time-picker-cancel
 capture apres-annuler
 # patients-recherche
 ouvrir (tabs)/patients
 attendre 3
-toucher Rechercher
+toucher Rechercher || toucher Recherche
 saisir li
 attendre 2
 capture recherche-li
@@ -82,7 +85,7 @@ ouvrir (tabs)/patients/{patient}
 attendre 4
 toucher-id patient-detail-more
 capture feuille-actions
-toucher-id patient-detail-menu-cancel
+toucher Annuler
 capture apres-annuler
 # message-clavier
 ouvrir (tabs)/messages/{conversation}
@@ -90,7 +93,7 @@ attendre 4
 toucher-id thread-composer-input-field
 saisir bonjour
 capture saisie-clavier
-toucher-id thread-composer-attach
+toucher-id thread-composer-attach || toucher Joindre un fichier
 capture menu-pieces-jointes
 fermer-feuille
 capture apres-fermeture
@@ -99,24 +102,25 @@ ouvrir (tabs)/patients/{patient}/ordonnances/nouvelle
 attendre 3
 toucher-id ordonnance-medecin-nom
 saisir test
-capture premier-champ-clavier
-defiler bas
+capture premier-champ
+defiler-vers ordonnance-nb-seances
 toucher-id ordonnance-nb-seances
 capture champ-numerique
 toucher-id patients-nouvelle-cancel
 capture abandon-feuille
-toucher-id create-modal-keep
+toucher-id create-modal-keep || toucher Continuer la saisie
 capture apres-continuer
 # constante-pave
 ouvrir (tabs)/patients/{patient}/constantes/nouvelle
 attendre 3
 sauter-si Non disponible pour votre specialite
+defiler-vers constante-spo2
 toucher-id constante-spo2
 saisir 9
 capture pave-numerique
 toucher-id patients-nouvelle-constante-cancel
 capture abandon-feuille
-toucher-id create-modal-keep
+toucher-id create-modal-keep || toucher Continuer la saisie
 # notifications-balayage
 ouvrir notifications
 attendre 4

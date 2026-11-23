@@ -2,9 +2,9 @@
 # Scripted screenshots of the app on a booted simulator (no AI agent). The job log must stay empty of
 # anything read on screen: only counters are printed, everything else goes to $OUT (encrypted afterwards).
 # Env: UDID, APP (pro|patient), APP_URL (secret: .tar.gz of the Simulator .app), ROUTES (file), OUT (folder),
-#      ROUTES_FILTRE (names, comma-separated, empty = all), SCENARIOS (names, empty = all, "aucun" = none), SCENARIOS_FILE, QA_SESSION_TOKEN, QA_PATIENT_ID, QA_CONVERSATION_ID (secrets, optional)
+#      ROUTES_FILTRE (names, comma-separated, empty = all), SESSION (aucune|famille, patient only), QA_PATIENT_TOKEN (secret, single use), SCENARIOS (names, empty = all, "aucun" = none), SCENARIOS_FILE, QA_SESSION_TOKEN, QA_PATIENT_ID, QA_CONVERSATION_ID (secrets, optional)
 set -uo pipefail
-ROUTES_FILTRE=${ROUTES_FILTRE:-}; SCENARIOS=${SCENARIOS:-}; SCENARIOS_FILE=${SCENARIOS_FILE:-scenarios/$APP.txt}
+ROUTES_FILTRE=${ROUTES_FILTRE:-}; SESSION=${SESSION:-aucune}; SCENARIOS=${SCENARIOS:-}; SCENARIOS_FILE=${SCENARIOS_FILE:-scenarios/$APP.txt}
 : "${UDID:?}" "${APP:?}" "${APP_URL:?}" "${ROUTES:?}" "${OUT:?}"
 case "$APP" in pro) SCHEME=cabdivin-pro ;; patient) SCHEME=cabdivin ;; *) echo "app must be pro or patient"; exit 1 ;; esac
 mkdir -p "$OUT"; J="$OUT/journal.txt"; : > "$J"
@@ -17,6 +17,8 @@ APPDIR=$(find "$RUNNER_TEMP/app-dl" -maxdepth 3 -name '*.app' -type d | head -1)
 xcrun simctl install "$UDID" "$APPDIR" || { echo "install failed"; exit 1; }
 BID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APPDIR/Info.plist")
 EXE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APPDIR/Info.plist")
+APPNAME1=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$APPDIR/Info.plist" 2>/dev/null || true)
+APPNAME2=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$APPDIR/Info.plist" 2>/dev/null || true)
 
 # Expo dev menu (Debug build): no onboarding panel, no panel at launch, no floating button, no gestures
 # (keys read from expo/expo packages/expo-dev-menu/ios/Modules/DevMenuPreferences.swift)
@@ -28,8 +30,12 @@ done
 shot() { xcrun simctl io "$UDID" screenshot --type=png "$OUT/$1.png" >/dev/null 2>&1; }
 H() { python3 scripts/ios/capture_helpers.py "$@"; }
 app_pid() { xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | awk -v b="UIKitApplication:$BID" 'index($0,b){print $1; exit}'; }
-# Foreground = the app runs (PID) AND the AXe root node is not SpringBoard (home screen)
-au_premier_plan() { local pid; pid=$(app_pid); [ -n "$pid" ] && [ "$pid" != "-" ] && [ "$(H front)" != springboard ]; }
+# Foreground = the app runs (PID) AND the root node of the AXe tree carries the app's own name (not SpringBoard, not empty).
+# FG_ROOT keeps that root label (an app or system name, never screen content) for the journal.
+au_premier_plan() {
+  local pid; pid=$(app_pid); FG_ROOT=$(H front)
+  [ -n "$pid" ] && [ "$pid" != "-" ] && [ "$(H isfront "$APPNAME1" "$APPNAME2")" = 1 ]
+}
 CRASH_N=0
 collect_crashes() {  # copies the app's crash reports (host + simulator) into $OUT/plantages, logs count + summary of the new ones
   mkdir -p "$OUT/plantages"; local f n=0 new=0
@@ -77,6 +83,16 @@ if [ "$APP" = pro ] && [ -n "${QA_SESSION_TOKEN:-}" ]; then
   ENC=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.stdin.read().strip(),safe=""))' <<<"$QA_SESSION_TOKEN")
   openurl "${SCHEME}:/__qa/session?token=${ENC}"; unset ENC QA_SESSION_TOKEN
   sleep 25; close_sheet 20; shot 01-apres-session; log "session envoyee (alertes acceptees: $ALERT_N, feuilles fermees: $SHEET_N)"
+elif [ "$APP" = patient ] && [ "${SESSION:-aucune}" = famille ] && [ -n "${QA_PATIENT_TOKEN:-}" ]; then
+  # Single-use family link token: no relaunch from here on (the session does not survive a restart)
+  ENC=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.stdin.read().strip(),safe=""))' <<<"$QA_PATIENT_TOKEN")
+  openurl "cabdivin://magic-link?token=${ENC}"; unset ENC QA_PATIENT_TOKEN
+  sleep 20; close_sheet 4; shot 01-apres-lien
+  if [ "$(H login)" = 1 ]; then
+    log "session refusee (ecran de connexion toujours affiche apres le lien)"; ROUTES_FILTRE=aucune; SCENARIOS=aucun
+  else
+    log "session famille ouverte"; NORELAUNCH=1; SCENARIOS=aucun
+  fi
 else
   log "pas de session"
 fi
@@ -96,10 +112,12 @@ while IFS="|" read -r NAME ROUTE WAIT <&3; do
     ROUTE=${ROUTE//\{conversation\}/$QA_CONVERSATION_ID}
   fi
   # Each route starts from a fresh launch: a modal opened by the previous link must not stay on top
-  xcrun simctl terminate "$UDID" "$BID" >/dev/null 2>&1; sleep 1
-  xcrun simctl launch "$UDID" "$BID" >/dev/null 2>&1; sleep 6
-  if [ "$APP" = pro ] && [ "$(H login)" = 1 ]; then log "$NAME : session perdue apres relance (ecran de connexion), parcours arrete"; break; fi
-  close_sheet 2
+  if [ -z "${NORELAUNCH:-}" ]; then
+    xcrun simctl terminate "$UDID" "$BID" >/dev/null 2>&1; sleep 1
+    xcrun simctl launch "$UDID" "$BID" >/dev/null 2>&1; sleep 6
+    if [ "$APP" = pro ] && [ "$(H login)" = 1 ]; then log "$NAME : session perdue apres relance (ecran de connexion), parcours arrete"; break; fi
+    close_sheet 2
+  fi
   openurl "${SCHEME}:/${ROUTE}"; sleep "${WAIT:-8}"
   close_sheet 1
   shot "$NN-$NAME"
@@ -110,11 +128,30 @@ done 3< "$([ "$ROUTES_FILTRE" = aucune ] && echo /dev/null || echo "$ROUTES")"
 
 collect_crashes
 
+if [ -n "${NORELAUNCH:-}" ]; then
+  SCN_N=1
+  run_scenario selecteur-date "ouvrir (tabs)/rdv/book
+attendre 4
+toucher-id rdv-book-date-field
+capture selecteur
+fermer-feuille
+capture apres-fermeture" nofresh
+  # last: sign out through the app, to invalidate the session
+  run_scenario deconnexion "ouvrir (tabs)/accueil/profil
+attendre 4
+toucher Se déconnecter
+capture confirmation
+toucher Se déconnecter
+attendre 5
+capture apres-deconnexion" nofresh
+fi
+
 # ---------------------------------------------------------------------------------------------
 # Interaction scenarios (scenarios/<app>.txt): "# name" opens a block, one step per line.
 #   ouvrir <route> | toucher <label> | toucher-id <testID> | saisir <text> | attendre <s> | defiler bas|haut
 #   retour | fermer-feuille | balayer-gauche <label> | sauter-si <text> | capture <name>
-#   saisir-touches <text> (axe type only) | coller <text> (pbcopy + Cmd+V only) | verifier-premier-plan
+#   saisir-touches <text> (axe type only) | coller <text> / saisir <text> (pbcopy + Cmd+V only) | verifier-premier-plan
+#   relancer | defiler-vers <text|testID> ; toucher / toucher-id accept alternatives: "a || b"
 # Journal: step lines only (never screen content).
 fresh_start() {
   xcrun simctl terminate "$UDID" "$BID" >/dev/null 2>&1; sleep 1
@@ -133,17 +170,32 @@ run_step() {
   local verb=${1%% *} arg=""; [[ "$1" == *' '* ]] && arg=${1#* }
   case "$verb" in
     ouvrir) subst_route "$arg" || return 1; openurl "${SCHEME}:/${ROUTE_OUT}"; sleep 6; close_sheet 1; return 0 ;;
-    toucher) [ "$(H tapx "$arg")" = 1 ] && { sleep 1.5; return 0; }; return 1 ;;
-    toucher-id) [ "$(H tapid "$arg")" = 1 ] && { sleep 1.5; return 0; }; return 1 ;;
+    toucher|toucher-id)  # alternatives separated by " || ", tried in order
+      local alt rest=$arg sub=tapx; [ "$verb" = toucher-id ] && sub=tapid
+      while :; do
+        alt=${rest%% || *}
+        [ "$(H "$sub" "$alt")" = 1 ] && { sleep 1.5; return 0; }
+        [[ "$rest" == *' || '* ]] || break
+        rest=${rest#* || }
+      done
+      return 1 ;;
     saisir|saisir-touches|coller)
+      # `saisir` = paste only: the former type.py (Cmd+A, 60 backspaces) sent the app to the home screen
       local p0 p1; p0=$(app_pid)
-      case "$verb" in
-        saisir) python3 scripts/ios/type.py "$arg" >/dev/null 2>&1 ;;
-        saisir-touches) axe type "$(printf '%s' "$arg" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null || printf '%s' "$arg")" --udid "$UDID" >/dev/null 2>&1 ;;
-        coller) printf '%s' "$arg" | xcrun simctl pbcopy "$UDID" >/dev/null 2>&1; axe key-combo --modifiers 227 --key 25 --udid "$UDID" >/dev/null 2>&1 ;;
-      esac
+      if [ "$verb" = saisir-touches ]; then
+        axe type "$(printf '%s' "$arg" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null || printf '%s' "$arg")" --udid "$UDID" >/dev/null 2>&1
+      else
+        printf '%s' "$arg" | xcrun simctl pbcopy "$UDID" >/dev/null 2>&1; axe key-combo --modifiers 227 --key 25 --udid "$UDID" >/dev/null 2>&1
+      fi
       sleep 1; H tap "Autoriser le collage" "Allow Paste" >/dev/null; sleep 1
       p1=$(app_pid); log "  [$SCN_NAME] pid avant/apres $verb : ${p0:-aucun} -> ${p1:-aucun}"; return 0 ;;
+    relancer) fresh_start; return $? ;;
+    defiler-vers)
+      for _ in 1 2 3 4 5 6; do
+        [ "$(H seen "$arg")" = 1 ] && return 0
+        axe swipe --start-x $((W / 2)) --start-y $((SH * 3 / 4)) --end-x $((W / 2)) --end-y $((SH / 2)) --duration 0.5 --udid "$UDID" >/dev/null 2>&1; sleep 1
+      done
+      [ "$(H seen "$arg")" = 1 ]; return $? ;;
     verifier-premier-plan) au_premier_plan && return 0; return 1 ;;
     attendre) sleep "$arg"; return 0 ;;
     defiler)
@@ -162,17 +214,17 @@ run_step() {
     *) return 1 ;;
   esac
 }
-run_scenario() {  # $1 = name, $2 = block (one step per line)
+run_scenario() {  # $1 = name, $2 = block (one step per line), $3 = "nofresh" to keep the running app
   SCN_NAME=$1; SCN_NN=$(printf '%02d' "$SCN_N"); SCN_N=$((SCN_N + 1))
   local line rc ok=0 ko=0
-  if ! fresh_start; then log "scenario $SCN_NAME : session perdue apres relance, scenarios arretes"; return 9; fi
+  if [ "${3:-}" != nofresh ] && ! fresh_start; then log "scenario $SCN_NAME : session perdue apres relance, scenarios arretes"; return 9; fi
   while IFS= read -r line <&5; do
     line=${line%$'\r'}; [[ -z "${line// }" || "$line" == \;* ]] && continue
     run_step "$line"; rc=$?
     if au_premier_plan; then FG="oui"; else FG="non"; fi
-    if [ $rc = 0 ]; then ok=$((ok + 1)); log "  [$SCN_NAME] ok : $line (premier plan : $FG)"
+    if [ $rc = 0 ]; then ok=$((ok + 1)); log "  [$SCN_NAME] ok : $line (premier plan : $FG, racine : $FG_ROOT)"
     elif [ $rc = 2 ]; then log "  [$SCN_NAME] saute ($line)"; break
-    else ko=$((ko + 1)); log "  [$SCN_NAME] ECHEC : $line (premier plan : $FG)"; break; fi
+    else ko=$((ko + 1)); log "  [$SCN_NAME] ECHEC : $line (premier plan : $FG, racine : $FG_ROOT)"; break; fi
   done 5<<<"$2"
   log "scenario $SCN_NAME : $ok etapes ok, $ko echec"
   collect_crashes

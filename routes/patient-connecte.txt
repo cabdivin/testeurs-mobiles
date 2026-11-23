@@ -1,0 +1,14 @@
+# Parcours de l'app patient CONNECTEE par lien famille (session a usage unique, aucune relance). nom|route|attente
+# Lien ouvert : cabdivin:/<route>. Les ecrans en erreur sont captures aussi (information).
+accueil|(tabs)/accueil|8
+rdv|(tabs)/rdv|8
+rdv-reservation|(tabs)/rdv/book|8
+messages|(tabs)/messages|8
+documents|(tabs)/documents|8
+factures|(tabs)/documents/invoices|8
+famille|(tabs)/famille|8
+profil|(tabs)/accueil/profil|8
+profil-langue|(tabs)/accueil/profil/language|6
+profil-suppression-compte|(tabs)/accueil/profil/delete-account|6
+notifications|(tabs)/accueil/notifications|8
+annuaire|(tabs)/accueil/annuaire|8

@@ -12,4 +12,6 @@ for d in devices:
     for t in themes:
         rows.append({"idx": len(rows) + 1, "device": d, "theme": t,
                      "slug": re.sub(r"[^a-z0-9]+", "-", d.lower()).strip("-")})
+if os.environ.get("SESSION", "aucune") == "famille" and (os.environ.get("APP") != "patient" or len(rows) != 1):
+    raise SystemExit("session=famille: app=patient, ONE device and ONE theme only (the token is single use)")
 print("matrix=" + json.dumps(rows))

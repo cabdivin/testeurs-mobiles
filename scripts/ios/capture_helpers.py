@@ -6,6 +6,8 @@ Matching is case- and accent-insensitive, on the label, the value or the testID 
   tapid <testID>      -> taps the element whose testID is exactly <testID>; prints 1 or 0
   has <text>          -> prints 1 if an element contains <text>
   swiperow <text>     -> horizontal swipe (right to left) on the row that contains <text>; prints 1 or 0
+  isfront <name>...   -> prints 1 if the root node label equals / contains one of the (non-empty) names
+  seen <text>         -> prints 1 if an element matching <text> is visible on screen
   front               -> prints the label of the root (Application) node: "springboard" = the home screen is shown
   login               -> prints 1 if the login screen of the app is shown (testIDs "login-*")"""
 import json, os, subprocess, sys, unicodedata
@@ -101,6 +103,13 @@ elif cmd == "swiperow":
         subprocess.run(["axe", "swipe", "--start-x", str(round(w * 0.85)), "--start-y", str(round(c[1])), "--end-x", str(round(w * 0.15)),
                         "--end-y", str(round(c[1])), "--duration", "0.4", "--udid", UDID], capture_output=True)
     print(1 if c else 0)
+elif cmd == "isfront":
+    root = next(iter(walk(tree())), None) or {}
+    label = norm(root.get("AXLabel") or root.get("title") or "")
+    print(1 if label and label != "springboard" and any(a and (a == label or a in label or label in a) for a in args) else 0)
+elif cmd == "seen":
+    w, h = screen()
+    print(1 if any(visible(centre(n), w, h) and any(args[0] in s for s in texts(n)) for n in walk(tree())) else 0)
 elif cmd == "front":
     t = tree()
     root = next(iter(walk(t)), None)
