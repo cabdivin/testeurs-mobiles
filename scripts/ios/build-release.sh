@@ -93,7 +93,9 @@ check_sim() {  # simulator .app of the QA profile: route table AND the QA sessio
   local b="$a/main.jsbundle"; [ -f "$b" ] || { echo "no main.jsbundle"; return 1; }
   ls -l "$b"
   grep -a -q 'omnicab.qa.session-injector.v1' "$b" || { echo "QA session injector missing"; return 1; }
-  for m in $(case $APP in pro) echo journee agenda patients messages reglages ;; *) echo accueil famille rdv messages profil ;; esac); do
+  local markers="accueil famille rdv messages profil"
+  [ "$APP" = pro ] && markers="journee agenda patients messages reglages"
+  for m in $markers; do
     grep -a -q "$m" "$b" || { echo "route marker $m missing"; return 1; }
   done
   echo "route table and QA session route present"
