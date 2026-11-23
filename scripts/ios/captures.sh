@@ -2,9 +2,9 @@
 # Scripted screenshots of the app on a booted simulator (no AI agent). The job log must stay empty of
 # anything read on screen: only counters are printed, everything else goes to $OUT (encrypted afterwards).
 # Env: UDID, APP (pro|patient), APP_URL (secret: .tar.gz of the Simulator .app), ROUTES (file), OUT (folder),
-#      ROUTES_FILTRE (names, comma-separated, empty = all), QA_SESSION_TOKEN, QA_PATIENT_ID, QA_CONVERSATION_ID (secrets, optional)
+#      ROUTES_FILTRE (names, comma-separated, empty = all), SCENARIOS (names, empty = all, "aucun" = none), SCENARIOS_FILE, QA_SESSION_TOKEN, QA_PATIENT_ID, QA_CONVERSATION_ID (secrets, optional)
 set -uo pipefail
-ROUTES_FILTRE=${ROUTES_FILTRE:-}
+ROUTES_FILTRE=${ROUTES_FILTRE:-}; SCENARIOS=${SCENARIOS:-}; SCENARIOS_FILE=${SCENARIOS_FILE:-scenarios/$APP.txt}
 : "${UDID:?}" "${APP:?}" "${APP_URL:?}" "${ROUTES:?}" "${OUT:?}"
 case "$APP" in pro) SCHEME=cabdivin-pro ;; patient) SCHEME=cabdivin ;; *) echo "app must be pro or patient"; exit 1 ;; esac
 mkdir -p "$OUT"; J="$OUT/journal.txt"; : > "$J"
@@ -70,7 +70,7 @@ N=2; DONE=0; TOTAL=0
 while IFS="|" read -r NAME ROUTE WAIT <&3; do
   [[ -z "${NAME// }" || "$NAME" == \#* ]] && continue
   TOTAL=$((TOTAL + 1)); NN=$(printf '%02d' "$N"); N=$((N + 1))
-  if [ -n "${ROUTES_FILTRE// /}" ] && [[ "$SEL" != *",$NAME,"* ]]; then continue; fi
+  if [ -n "${ROUTES_FILTRE// /}" ] && [ "$ROUTES_FILTRE" != aucune ] && [[ "$SEL" != *",$NAME,"* ]]; then continue; fi
   if [[ "$ROUTE" == *'{patient}'* ]]; then
     [ -n "${QA_PATIENT_ID:-}" ] || { log "$NAME saute (QA_PATIENT_ID vide)"; continue; }
     ROUTE=${ROUTE//\{patient\}/$QA_PATIENT_ID}
@@ -89,7 +89,79 @@ while IFS="|" read -r NAME ROUTE WAIT <&3; do
   shot "$NN-$NAME"
   scroll_down; shot "$NN-$NAME-bas"
   DONE=$((DONE + 1)); log "$NAME capture ok (alertes acceptees: $ALERT_N, feuilles fermees: $SHEET_N)"
-done 3< "$ROUTES"
+done 3< "$([ "$ROUTES_FILTRE" = aucune ] && echo /dev/null || echo "$ROUTES")"
+
+
+# ---------------------------------------------------------------------------------------------
+# Interaction scenarios (scenarios/<app>.txt): "# name" opens a block, one step per line.
+#   ouvrir <route> | toucher <label> | toucher-id <testID> | saisir <text> | attendre <s> | defiler bas|haut
+#   retour | fermer-feuille | balayer-gauche <label> | sauter-si <text> | capture <name>
+# Journal: step lines only (never screen content).
+fresh_start() {
+  xcrun simctl terminate "$UDID" "$BID" >/dev/null 2>&1; sleep 1
+  xcrun simctl launch "$UDID" "$BID" >/dev/null 2>&1; sleep 6
+  if [ "$APP" = pro ] && [ "$(H login)" = 1 ]; then return 1; fi
+  close_sheet 2; return 0
+}
+subst_route() {  # sets ROUTE_OUT, returns 1 when a token is empty
+  ROUTE_OUT=$1
+  if [[ "$ROUTE_OUT" == *'{patient}'* ]]; then [ -n "${QA_PATIENT_ID:-}" ] || return 1; ROUTE_OUT=${ROUTE_OUT//\{patient\}/$QA_PATIENT_ID}; fi
+  if [[ "$ROUTE_OUT" == *'{conversation}'* ]]; then [ -n "${QA_CONVERSATION_ID:-}" ] || return 1; ROUTE_OUT=${ROUTE_OUT//\{conversation\}/$QA_CONVERSATION_ID}; fi
+  return 0
+}
+# one step; return 0 = ok, 1 = failed, 2 = skip the rest of the scenario
+run_step() {
+  local verb=${1%% *} arg=""; [[ "$1" == *' '* ]] && arg=${1#* }
+  case "$verb" in
+    ouvrir) subst_route "$arg" || return 1; openurl "${SCHEME}:/${ROUTE_OUT}"; sleep 6; close_sheet 1; return 0 ;;
+    toucher) [ "$(H tapx "$arg")" = 1 ] && { sleep 1.5; return 0; }; return 1 ;;
+    toucher-id) [ "$(H tapid "$arg")" = 1 ] && { sleep 1.5; return 0; }; return 1 ;;
+    saisir) python3 scripts/ios/type.py "$arg" >/dev/null 2>&1; sleep 1; H tap "Autoriser le collage" "Allow Paste" >/dev/null; sleep 1; return 0 ;;
+    attendre) sleep "$arg"; return 0 ;;
+    defiler)
+      if [ "$arg" = haut ]; then axe swipe --start-x $((W / 2)) --start-y $((SH / 4)) --end-x $((W / 2)) --end-y $((SH * 3 / 4)) --duration 0.5 --udid "$UDID" >/dev/null 2>&1
+      else axe swipe --start-x $((W / 2)) --start-y $((SH * 3 / 4)) --end-x $((W / 2)) --end-y $((SH / 4)) --duration 0.5 --udid "$UDID" >/dev/null 2>&1; fi
+      sleep 1; return 0 ;;
+    retour) axe gesture swipe-from-left-edge --screen-width "$W" --screen-height "$SH" --udid "$UDID" >/dev/null 2>&1; sleep 1.5; return 0 ;;
+    fermer-feuille)
+      if [ "$(H tap Annuler Cancel Fermer Close)" != 1 ]; then
+        axe swipe --start-x $((W / 2)) --start-y $((SH / 3)) --end-x $((W / 2)) --end-y $((SH * 9 / 10)) --duration 0.6 --udid "$UDID" >/dev/null 2>&1
+      fi
+      sleep 1.5; return 0 ;;
+    balayer-gauche) [ "$(H swiperow "$arg")" = 1 ] && { sleep 1; return 0; }; return 1 ;;
+    sauter-si) [ "$(H has "$arg")" = 1 ] && return 2; return 0 ;;
+    capture) close_sheet 1; shot "S${SCN_NN}-${SCN_NAME}-${arg}"; return 0 ;;
+    *) return 1 ;;
+  esac
+}
+run_scenario() {  # $1 = name, $2 = block (one step per line)
+  SCN_NAME=$1; SCN_NN=$(printf '%02d' "$SCN_N"); SCN_N=$((SCN_N + 1))
+  local line rc ok=0 ko=0
+  if ! fresh_start; then log "scenario $SCN_NAME : session perdue apres relance, scenarios arretes"; return 9; fi
+  while IFS= read -r line <&5; do
+    line=${line%$'\r'}; [[ -z "${line// }" || "$line" == \;* ]] && continue
+    run_step "$line"; rc=$?
+    if [ $rc = 0 ]; then ok=$((ok + 1)); log "  [$SCN_NAME] ok : $line"
+    elif [ $rc = 2 ]; then log "  [$SCN_NAME] saute ($line)"; break
+    else ko=$((ko + 1)); log "  [$SCN_NAME] ECHEC : $line"; break; fi
+  done 5<<<"$2"
+  log "scenario $SCN_NAME : $ok etapes ok, $ko echec"
+}
+SCN_N=1
+if [ "$SCENARIOS" != aucun ] && [ -f "$SCENARIOS_FILE" ]; then
+  SSEL=",${SCENARIOS// /},"; CUR=""; BLOCK=""
+  flush() { [ -n "$CUR" ] || return 0
+    if [ -z "${SCENARIOS// /}" ] || [[ "$SSEL" == *",$CUR,"* ]]; then run_scenario "$CUR" "$BLOCK"; return $?; fi; return 0; }
+  STOP=0
+  while IFS= read -r L <&6 || [ -n "$L" ]; do
+    L=${L%$'\r'}
+    if [[ "$L" =~ ^#[[:space:]]*(.+)$ ]]; then
+      flush; [ $? = 9 ] && { STOP=1; break; }
+      CUR=${BASH_REMATCH[1]}; BLOCK=""
+    else BLOCK+="$L"$'\n'; fi
+  done 6< "$SCENARIOS_FILE"
+  [ $STOP = 0 ] && flush
+fi
 
 # JavaScript / native errors of the app during the run (200 lines at most)
 xcrun simctl spawn "$UDID" log show --last 30m --style compact \

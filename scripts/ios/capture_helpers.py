@@ -1,10 +1,20 @@
-"""Helpers of scripts/ios/captures.sh (no AI agent). Nothing read on screen is ever printed.
-  size           -> "<width> <height>" of the screen in points (from the AXe tree)
-  tap <label>... -> taps the first element whose label is one of the given ones (case-insensitive); prints 1, else 0
-  login          -> prints 1 if the login screen of the app is shown (testIDs "login-*"), else 0"""
-import json, os, subprocess, sys
+"""Helpers of scripts/ios/captures.sh (no AI agent). Nothing read on screen is ever printed: only 0/1 or sizes.
+Matching is case- and accent-insensitive, on the label, the value or the testID (AXUniqueId) of an element.
+  size                -> "<width> <height>" of the screen in points
+  tap <label>...      -> taps the first element whose label equals one of the given ones; prints 1 or 0
+  tapx <text>         -> taps the element matching <text>: exact match first, else "contains"; prints 1 or 0
+  tapid <testID>      -> taps the element whose testID is exactly <testID>; prints 1 or 0
+  has <text>          -> prints 1 if an element contains <text>
+  swiperow <text>     -> horizontal swipe (right to left) on the row that contains <text>; prints 1 or 0
+  login               -> prints 1 if the login screen of the app is shown (testIDs "login-*")"""
+import json, os, subprocess, sys, unicodedata
 
 UDID = os.environ["UDID"]
+
+
+def norm(s):
+    s = unicodedata.normalize("NFKD", str(s or ""))
+    return "".join(c for c in s if not unicodedata.combining(c)).strip().lower()
 
 
 def tree():
@@ -24,29 +34,71 @@ def walk(n):
         yield from walk(n.get("children") or [])
 
 
-def labels(n):
-    return {str(n.get(k) or "").strip().lower() for k in ("AXLabel", "title", "AXValue")} - {""}
+def texts(n):
+    return {norm(n.get(k)) for k in ("AXLabel", "title", "AXValue", "AXUniqueId")} - {""}
 
 
-cmd = sys.argv[1]
-if cmd == "size":
+def centre(n):
+    f = n.get("frame") or {}
+    if f.get("width", 0) <= 0 or f.get("height", 0) <= 0:
+        return None
+    return f["x"] + f["width"] / 2, f["y"] + f["height"] / 2
+
+
+def screen():
     for n in walk(tree()):
         f = n.get("frame") or {}
         if f.get("width", 0) >= 300 and f.get("height", 0) >= 500:
-            print(round(f["width"]), round(f["height"]))
-            break
-    else:
-        print("390 844")
-elif cmd == "tap":
-    wanted = {a.lower() for a in sys.argv[2:]}
+            return round(f["width"]), round(f["height"])
+    return 390, 844
+
+
+def tap_at(c):
+    subprocess.run(["axe", "tap", "-x", str(round(c[0])), "-y", str(round(c[1])), "--udid", UDID], capture_output=True)
+
+
+def visible(c, w, h):
+    return c is not None and 0 <= c[0] <= w and 0 <= c[1] <= h
+
+
+def find(pred):
+    w, h = screen()
     for n in walk(tree()):
-        f = n.get("frame") or {}
-        if labels(n) & wanted and f.get("width", 0) > 0 and f.get("height", 0) > 0:
-            subprocess.run(["axe", "tap", "-x", str(round(f["x"] + f["width"] / 2)), "-y", str(round(f["y"] + f["height"] / 2)),
-                            "--udid", UDID], capture_output=True)
-            print(1)
-            break
-    else:
-        print(0)
+        c = centre(n)
+        if visible(c, w, h) and pred(texts(n)):
+            return n, c, (w, h)
+    return None, None, (w, h)
+
+
+cmd, args = sys.argv[1], [norm(a) for a in sys.argv[2:]]
+if cmd == "size":
+    print(*screen())
+elif cmd == "tap":
+    n, c, _ = find(lambda t: bool(t & set(args)))
+    if c:
+        tap_at(c)
+    print(1 if c else 0)
+elif cmd == "tapx":
+    q = args[0]
+    w, h = screen()
+    cands = [(texts(x), centre(x)) for x in walk(tree())]
+    cands = [(t, c) for t, c in cands if visible(c, w, h)]
+    hit = next((c for t, c in cands if q in t), None) or next((c for t, c in cands if any(q in s for s in t)), None)
+    if hit:
+        tap_at(hit)
+    print(1 if hit else 0)
+elif cmd == "tapid":
+    n, c, _ = find(lambda t: args[0] in t)
+    if c:
+        tap_at(c)
+    print(1 if c else 0)
+elif cmd == "has":
+    print(1 if any(any(args[0] in s for s in texts(n)) for n in walk(tree())) else 0)
+elif cmd == "swiperow":
+    n, c, (w, h) = find(lambda t: any(args[0] in s for s in t))
+    if c:
+        subprocess.run(["axe", "swipe", "--start-x", str(round(w * 0.85)), "--start-y", str(round(c[1])), "--end-x", str(round(w * 0.15)),
+                        "--end-y", str(round(c[1])), "--duration", "0.4", "--udid", UDID], capture_output=True)
+    print(1 if c else 0)
 elif cmd == "login":
     print(1 if any(str(n.get("AXUniqueId") or "").startswith("login-") for n in walk(tree())) else 0)
