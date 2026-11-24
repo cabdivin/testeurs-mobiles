@@ -221,3 +221,21 @@ capture plus-2
 ouvrir (tabs)/messages
 defiler bas
 capture messages-1
+
+# defilement-4
+ouvrir (tabs)/journee
+defiler bas
+defiler bas
+defiler bas
+capture journee-3
+defiler bas
+capture journee-4
+defiler bas
+capture journee-5
+ouvrir (tabs)/plus
+defiler bas
+defiler bas
+defiler bas
+capture plus-3
+defiler bas
+capture plus-4
