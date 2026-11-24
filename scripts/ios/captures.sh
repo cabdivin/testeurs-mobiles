@@ -81,8 +81,10 @@ read -r W SH < <(H size)
 log "ecran : ${W}x${SH} points"
 
 scroll_down() {  # 4 swipes, like the Maestro flows
-  for _ in 1 2 3 4; do
+  local i
+  for i in 1 2 3 4; do
     axe swipe --start-x $((W / 2)) --start-y $((SH * 3 / 4)) --end-x $((W / 2)) --end-y $((SH / 4)) --duration 0.5 --udid "$UDID" >/dev/null 2>&1; sleep 1
+    [ -n "${TRACE_SCROLL:-}" ] && log "  defilement $i (${W}x${SH}) : repere=$(H has "$TRACE_SCROLL")"
   done
 }
 

@@ -121,6 +121,7 @@ jobs:
           ROUTES: ${{ inputs.fichier_routes != '' && inputs.fichier_routes || (inputs.session == 'famille' && 'routes/patient-connecte.txt' || format('routes/{0}.txt', inputs.app)) }}
           ROUTES_FILTRE: ${{ inputs.routes }}
           SCENARIOS: ${{ inputs.scenarios }}
+          TRACE_SCROLL: ${{ vars.TRACE_SCROLL }}
           SESSION: ${{ inputs.session }}
           QA_PATIENT_TOKEN: ${{ inputs.session == 'famille' && secrets.QA_PATIENT_TOKEN || '' }}
           OUT: results/captures-${{ inputs.app }}-${{ matrix.slug }}-${{ matrix.theme }}
