@@ -286,7 +286,7 @@ jobs:
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)"
       - name: Tools (AXe, Pillow, Claude Code)
         run: |
-          brew install -q cameroncooke/axe/axe
+          for essai in 1 2 3 4 5; do brew install -q cameroncooke/axe/axe && break; sleep 30; done; command -v axe >/dev/null
           python3 -m pip install -q --break-system-packages pillow
           npm install -g --silent @anthropic-ai/claude-code
 
