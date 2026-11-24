@@ -78,6 +78,7 @@ openurl() { xcrun simctl openurl "$UDID" "$1" >/dev/null 2>&1; accept_alert; }
 xcrun simctl launch "$UDID" "$BID" >/dev/null 2>&1 || { echo "launch failed"; exit 1; }
 sleep 20; shot 00-lancement; log "lancement ok"
 read -r W SH < <(H size)
+log "ecran : ${W}x${SH} points"
 
 scroll_down() {  # 4 swipes, like the Maestro flows
   for _ in 1 2 3 4; do

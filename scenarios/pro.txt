@@ -200,3 +200,24 @@ ouvrir (tabs)/plus/annuaire
 capture paysage-annuaire
 ouvrir (tabs)/agenda/rdv/new
 capture paysage-nouveau-rdv
+
+# defilement
+ouvrir (tabs)/journee
+capture journee-0
+defiler bas
+capture journee-1
+defiler bas
+capture journee-2
+ouvrir (tabs)/agenda
+capture agenda-0
+defiler bas
+capture agenda-1
+ouvrir (tabs)/plus
+capture plus-0
+defiler bas
+capture plus-1
+defiler bas
+capture plus-2
+ouvrir (tabs)/messages
+defiler bas
+capture messages-1
