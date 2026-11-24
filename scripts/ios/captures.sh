@@ -156,7 +156,7 @@ fi
 # Interaction scenarios (scenarios/<app>.txt): "# name" opens a block, one step per line.
 #   ouvrir <route> | toucher <label> | toucher-id <testID> | saisir <text> | attendre <s> | defiler bas|haut
 #   retour | fermer-feuille | balayer-gauche <label> | sauter-si <text> | capture <name>
-#   saisir-touches <text> (axe type only) | coller <text> / saisir <text> (pbcopy + Cmd+V only) | verifier-premier-plan
+#   pivoter (rotate the simulator to landscape, iPad) | saisir-touches <text> (axe type only) | coller <text> / saisir <text> (pbcopy + Cmd+V only) | verifier-premier-plan
 #   relancer | defiler-vers <text|testID> ; toucher / toucher-id accept alternatives: "a || b"
 # Journal: step lines only (never screen content).
 fresh_start() {
@@ -208,6 +208,10 @@ run_step() {
       done
       [ "$(H seen "$arg")" = 1 ]; return $? ;;
     verifier-premier-plan) au_premier_plan && return 0; return 1 ;;
+    pivoter)  # landscape: the Simulator window must exist, the rotation is a menu shortcut (Cmd+Right)
+      open -a Simulator --args -CurrentDeviceUDID "$UDID" >/dev/null 2>&1; sleep 10
+      osascript -e 'tell application "Simulator" to activate' -e 'delay 2' -e 'tell application "System Events" to key code 124 using {command down}' >/dev/null 2>&1
+      local prc=$?; sleep 4; log "  [$SCN_NAME] pivoter : osascript $prc"; [ "$prc" = 0 ]; return $? ;;
     attendre) sleep "$arg"; return 0 ;;
     defiler)
       if [ "$arg" = haut ]; then axe swipe --start-x $((W / 2)) --start-y $((SH / 4)) --end-x $((W / 2)) --end-y $((SH * 3 / 4)) --duration 0.5 --udid "$UDID" >/dev/null 2>&1

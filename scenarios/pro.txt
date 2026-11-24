@@ -180,3 +180,23 @@ defiler haut
 toucher Rechercher || Recherche
 attendre 2
 capture annuaire-recherche-clavier
+
+# ipad-paysage
+pivoter
+attendre 3
+ouvrir (tabs)/journee
+capture paysage-journee
+ouvrir (tabs)/agenda
+capture paysage-agenda
+ouvrir (tabs)/patients
+capture paysage-patients
+ouvrir (tabs)/patients/{patient}
+capture paysage-fiche-patient
+ouvrir (tabs)/messages
+capture paysage-messages
+ouvrir (tabs)/plus
+capture paysage-plus
+ouvrir (tabs)/plus/annuaire
+capture paysage-annuaire
+ouvrir (tabs)/agenda/rdv/new
+capture paysage-nouveau-rdv
