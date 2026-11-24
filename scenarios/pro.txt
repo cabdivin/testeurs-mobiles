@@ -164,3 +164,19 @@ fermer-feuille
 toucher-id plus-language
 attendre 3
 capture langue-reglages-ios
+
+# annuaire
+ouvrir (tabs)/plus/annuaire
+attendre 6
+capture annuaire-segments
+toucher Médicaments
+attendre 5
+capture annuaire-medicaments
+toucher Médecins
+attendre 4
+defiler bas
+capture annuaire-defile
+defiler haut
+toucher Rechercher || Recherche
+attendre 2
+capture annuaire-recherche-clavier
