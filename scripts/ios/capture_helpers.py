@@ -76,7 +76,15 @@ def find(pred):
 
 cmd, args = sys.argv[1], [norm(a) for a in sys.argv[2:]]
 if cmd == "size":
-    print(*screen())
+    # The default (390x844) is only a last resort: on a smaller screen it sends the swipes onto the tab bar.
+    import time
+    for _ in range(15):
+        found = next(((round(f["width"]), round(f["height"])) for f in (n.get("frame") or {} for n in walk(tree()))
+                      if f.get("width", 0) >= 300 and f.get("height", 0) >= 500), None)
+        if found:
+            break
+        time.sleep(2)
+    print(*(found or screen()))
 elif cmd == "tap":
     n, c, _ = find(lambda t: bool(t & set(args)))
     if c:
