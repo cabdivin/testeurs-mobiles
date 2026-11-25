@@ -239,3 +239,35 @@ defiler bas
 capture plus-3
 defiler bas
 capture plus-4
+
+# hors-connexion-onglets
+hors-reseau
+relancer
+ouvrir (tabs)/journee
+attendre 14
+capture journee-hors-reseau
+defiler bas
+capture journee-hors-reseau-bas
+ouvrir (tabs)/patients
+attendre 4
+capture patients-hors-reseau
+ouvrir (tabs)/plus
+attendre 3
+capture plus-hors-reseau
+defiler bas
+defiler bas
+capture plus-hors-reseau-bas
+ouvrir (tabs)/agenda/rdv/new
+attendre 4
+capture nouveau-rdv-hors-reseau
+relancer
+ouvrir (tabs)/messages/{conversation}
+attendre 5
+toucher-id thread-composer-input-field
+attendre 2
+capture fil-clavier-hors-reseau
+en-reseau
+relancer
+ouvrir (tabs)/journee
+attendre 14
+capture journee-en-reseau
