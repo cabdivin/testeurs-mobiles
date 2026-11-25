@@ -1,0 +1,20 @@
+; Scenarios d'interaction de l'app patient, ecrans publics (aucune session).
+; Memes etapes que scenarios/pro.txt.
+
+# hors-connexion
+hors-reseau
+relancer
+ouvrir (auth)/invite-code
+attendre 14
+capture code-invitation-hors-reseau
+ouvrir (auth)/login
+attendre 5
+capture connexion-hors-reseau
+ouvrir annuaire-public
+attendre 6
+capture annuaire-hors-reseau
+en-reseau
+relancer
+ouvrir (auth)/invite-code
+attendre 14
+capture code-invitation-en-reseau
