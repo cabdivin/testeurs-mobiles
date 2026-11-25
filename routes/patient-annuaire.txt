@@ -1,0 +1,7 @@
+# nom|route|attente en secondes. Lien ouvert : cabdivin:/<route> (app patient, non connectee)
+accueil|accueil-public|12
+recherche|accueil-public/recherche|10
+resultats-psy|accueil-public/resultats?metier=Psychologue|12
+resultats-video|accueil-public/resultats?teleconsult=1|12
+fiche-reservable|annuaire-public/medecins/ghita-kabbadj?booking=1|14
+fiche-sans-reservation|annuaire-public/medecins/fatine-moblid-marrakech|12
