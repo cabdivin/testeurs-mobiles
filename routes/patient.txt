@@ -4,7 +4,3 @@ onboarding|onboarding|8
 connexion|(auth)/login|8
 code-invitation|(auth)/invite-code|8
 annuaire-public|annuaire-public|10
-accueil-public|accueil-public|10
-accueil-recherche|accueil-public/recherche|8
-accueil-resultats|accueil-public/resultats|10
-accueil-compte|accueil-public/compte|6
