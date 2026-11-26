@@ -18,3 +18,17 @@ relancer
 ouvrir (auth)/invite-code
 attendre 14
 capture code-invitation-en-reseau
+
+# liens-accueil
+ouvrir (auth)/login
+attendre 5
+capture connexion
+toucher-id login-explore-annuaire
+attendre 6
+capture apres-explorer
+defiler-vers accueil-public-pro-link
+attendre 1
+capture lien-soignant-visible
+toucher-id accueil-public-pro-link
+attendre 6
+capture apres-lien-soignant
