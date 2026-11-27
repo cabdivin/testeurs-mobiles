@@ -32,3 +32,22 @@ capture lien-soignant-visible
 toucher-id accueil-public-pro-link
 attendre 6
 capture apres-lien-soignant
+
+# reservation
+; Sans session : resultats -> fiche du premier praticien -> creneaux -> un creneau -> formulaire VISIBLE.
+; Le scenario s'arrete avant l'envoi : il ne remplit ni ne soumet le formulaire (aucun rendez-vous reel).
+ouvrir accueil-public/resultats
+attendre 10
+capture reservation-resultats
+toucher resultats-card-
+attendre 10
+capture reservation-fiche
+toucher Prendre rendez-vous || fiche-book
+attendre 10
+capture reservation-creneaux
+toucher creneaux-slot-
+attendre 8
+capture reservation-formulaire
+defiler bas
+attendre 2
+capture reservation-formulaire-bas
