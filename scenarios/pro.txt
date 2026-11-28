@@ -2,7 +2,7 @@
 ; Format : "# nom" ouvre un scenario, une etape par ligne ; les lignes commencant par ; sont ignorees.
 ; Etapes : ouvrir <route> | toucher <libelle> | toucher-id <testID> (alternatives : "a || b") | saisir <texte> (collage seul)
 ;          saisir-touches <texte> | coller <texte> | attendre <s> | defiler bas|haut | defiler-vers <texte ou testID>
-;          retour | fermer-feuille | relancer | balayer-gauche <libelle ou testID> | sauter-si <texte>
+;          retour | fermer-feuille | relancer | balayer-gauche <libelle ou testID> | glisser gauche|droite | sauter-si <texte>
 ;          verifier-premier-plan | capture <nom>
 ; INTERDIT : valider un formulaire, envoyer, enregistrer, supprimer, se deconnecter, activer les notifications.
 ; ORDRE : le clavier logiciel disparait des qu'une touche materielle a ete envoyee (meme apres relance) :
@@ -271,3 +271,13 @@ relancer
 ouvrir (tabs)/journee
 attendre 14
 capture journee-en-reseau
+# agenda-glissement
+ouvrir (tabs)/agenda
+attendre 3
+capture avant
+glisser gauche
+attendre 2
+capture apres-gauche
+glisser droite
+attendre 2
+capture apres-droite

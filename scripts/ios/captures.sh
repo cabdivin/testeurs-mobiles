@@ -158,7 +158,7 @@ fi
 # ---------------------------------------------------------------------------------------------
 # Interaction scenarios (scenarios/<app>.txt): "# name" opens a block, one step per line.
 #   ouvrir <route> | toucher <label> | toucher-id <testID> | saisir <text> | attendre <s> | defiler bas|haut
-#   retour | fermer-feuille | balayer-gauche <label> | sauter-si <text> | capture <name>
+#   retour | fermer-feuille | balayer-gauche <label> | glisser gauche|droite | sauter-si <text> | capture <name>
 #   hors-reseau / en-reseau (NetInfo reachability probe blocked / restored) | pivoter (rotate the simulator to landscape, iPad) | saisir-touches <text> (axe type only) | coller <text> / saisir <text> (pbcopy + Cmd+V only) | verifier-premier-plan
 #   relancer | defiler-vers <text|testID> ; toucher / toucher-id accept alternatives: "a || b"
 # Journal: step lines only (never screen content).
@@ -233,6 +233,10 @@ run_step() {
       fi
       sleep 1.5; return 0 ;;
     balayer-gauche) [ "$(H swiperow "$arg")" = 1 ] && { sleep 1; return 0; }; return 1 ;;
+    glisser)  # horizontal swipe across the content at 64% of the screen height: "glisser gauche" or "glisser droite"
+      local gy=$((SH * 64 / 100)) gx1=$((W * 4 / 5)) gx2=$((W / 5))
+      [ "$arg" = droite ] && { gx1=$((W / 5)); gx2=$((W * 4 / 5)); }
+      axe swipe --start-x "$gx1" --start-y "$gy" --end-x "$gx2" --end-y "$gy" --duration 0.3 --udid "$UDID" >/dev/null 2>&1; sleep 1.5; return 0 ;;
     sauter-si) [ "$(H has "$arg")" = 1 ] && return 2; return 0 ;;
     capture) close_sheet 1; shot "S${SCN_NN}-${SCN_NAME}-${arg}"; return 0 ;;
     *) return 1 ;;
